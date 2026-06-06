@@ -604,13 +604,14 @@ function renderMarket() {
       '갱신: ' + fmt.datetime(new Date(latest.updated_at));
   }
 
-  const sorted = [...prices].sort((a,b) => (a.name || a.ticker).localeCompare(b.name || b.ticker, 'ko'));
-  const rows = sorted.map(lp => {
+  const sorted = Object.entries(CACHE.livePrices)
+    .sort((a,b) => (a[1].name||a[0]).localeCompare(b[1].name||b[0], 'ko'));
+  const rows = sorted.map(([ticker, lp]) => {
     const pctCls = lp.change_pct > 0 ? 'text-success' : lp.change_pct < 0 ? 'text-danger' : '';
     const arrow = lp.change_pct > 0 ? '▲' : lp.change_pct < 0 ? '▼' : '-';
     return `<tr>
-      <td><strong>${lp.name}</strong> <span class="text-muted text-sm">${lp.ticker}</span></td>
-      <td class="num" id="price-${lp.ticker}"><strong>${fmt.num(lp.price)}원</strong></td>
+      <td><strong>${lp.name}</strong></td>
+      <td class="num" id="price-${ticker}"><strong>${fmt.num(lp.price)}원</strong></td>
       <td class="num ${pctCls}">${arrow} ${fmt.num(Math.abs(lp.change_amt))}원</td>
       <td class="num font-bold ${pctCls}">${lp.change_pct > 0 ? '+' : ''}${Number(lp.change_pct).toFixed(2)}%</td>
     </tr>`;
@@ -643,7 +644,7 @@ function renderPortfolio() {
     : `<div class="table-wrap"><table>
       <thead><tr><th>종목</th><th class="num">수량</th><th class="num">평균매입가</th><th class="num">현재가</th><th class="num">평가금액</th><th class="num">손익</th><th class="num">수익률</th></tr></thead>
       <tbody>${port.items.map(i => `<tr>
-        <td><strong>${i.name}</strong> <span class="text-muted text-sm">${i.ticker}</span></td>
+        <td><strong>${i.name}</strong></td>
         <td class="num">${fmt.num(i.qty)}주</td>
         <td class="num">${fmt.num(i.avgCost)}원</td>
         <td class="num">${fmt.num(i.currentPrice)}원</td>
@@ -736,7 +737,7 @@ function renderTrade() {
       const held = port.items.find(i => i.ticker === ticker)?.qty || 0;
       const pctCls = lp.change_pct > 0 ? 'text-success' : lp.change_pct < 0 ? 'text-danger' : '';
       return `<tr>
-        <td><strong>${lp.name}</strong> <span class="text-muted text-sm">${ticker}</span></td>
+        <td><strong>${lp.name}</strong></td>
         <td class="num">${fmt.num(lp.price)}원</td>
         <td class="num ${pctCls}">${lp.change_pct > 0 ? '+' : ''}${Number(lp.change_pct).toFixed(2)}%</td>
         <td class="num">${held > 0 ? fmt.num(held)+'주' : '-'}</td>
@@ -976,29 +977,14 @@ function renderLeaderboard() {
     ranks.push(Math.abs(ports[i].returnPct - ports[i-1].returnPct) < 1e-9 ? ranks[i-1] : i+1);
   }
 
-  const myPrefix = CACHE.students.find(s=>s.id===SESSION.studentId)?.student_number?.slice(0,2) || '';
-  const classPorts = ports.filter(p => p.student.student_number?.startsWith(myPrefix));
-  const classRanks = (() => {
-    const r = [];
-    for (let i=0; i<classPorts.length; i++) {
-      if (!hasActivity(classPorts[i])) { r.push(null); continue; }
-      if (i===0 || r[i-1]===null) { r.push(1); continue; }
-      r.push(Math.abs(classPorts[i].returnPct - classPorts[i-1].returnPct) < 1e-9 ? r[i-1] : i+1);
-    }
-    return r;
-  })();
-
   const myTotalIdx = ports.findIndex(p=>p.student.id===SESSION.studentId);
-  const myClassIdx = classPorts.findIndex(p=>p.student.id===SESSION.studentId);
 
   // 내 순위 안내
   let myRankInfo = '';
   if (myTotalIdx >= 0 && hasActivity(ports[myTotalIdx])) {
-    const g = myPrefix[0], c = myPrefix[1];
     myRankInfo = `<div class="alert alert-info" style="margin-bottom:14px;">
       <strong>나의 순위:</strong>
-      ${g}학년 ${c}반 <strong style="color:var(--p); font-size:16px;">${classRanks[myClassIdx]}위</strong> /
-      전체 <strong style="color:var(--p); font-size:16px;">${ranks[myTotalIdx]}위</strong>
+      전체 <strong style="color:var(--p); font-size:16px;">${ranks[myTotalIdx]}위</strong> / ${ports.filter(hasActivity).length}명 참여
     </div>`;
   }
 
@@ -1032,11 +1018,7 @@ function renderLeaderboard() {
 
   document.getElementById('leaderboard-content').innerHTML = `
     ${myRankInfo}
-    ${classPorts.length > 0 ? `
-      <div class="card">
-        <div class="card-title">🏫 학급 순위 — ${myPrefix[0]}학년 ${myPrefix[1]}반</div>
-        <div class="table-wrap"><table>${thead}<tbody>${renderRows(classPorts, classRanks)}</tbody></table></div>
-      </div>` : ''}
+
     <div class="card">
       <div class="card-title">🏆 전체 순위 (${ports.length}명)</div>
       <div class="table-wrap"><table>${thead}<tbody>${renderRows(ports, ranks)}</tbody></table></div>
