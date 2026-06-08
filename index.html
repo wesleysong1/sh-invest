@@ -221,15 +221,16 @@ td.center, th.center { text-align: center; }
   </header>
   <nav class="nav-tabs">
     <a class="nav-tab active" data-tab="market">📈 시황</a>
-    <a class="nav-tab" data-tab="portfolio" data-auth="1">내 포트폴리오</a>
-    <a class="nav-tab" data-tab="trade" data-auth="1">거래</a>
+    <a class="nav-tab" data-tab="portfolio" data-auth="1">💼 내 포트폴리오</a>
+    <a class="nav-tab" data-tab="trade" data-auth="1">🛒 주문</a>
+    <a class="nav-tab" data-tab="orders" data-auth="1">📋 예약 주문</a>
     <a class="nav-tab" data-tab="trend">📊 트렌드</a>
     <a class="nav-tab" data-tab="leaderboard">🏆 순위표</a>
   </nav>
   <main class="main">
     <section class="tab active" id="tab-market">
       <div class="card">
-        <div class="card-title">🇰🇷 국내 주식 시세 <span class="text-sm text-muted" id="market-updated"></span></div>
+        <div class="card-title">국내 주식 시세 <span class="text-sm text-muted" id="market-updated"></span></div>
         <div id="market-kospi"></div>
       </div>
     </section>
@@ -249,6 +250,10 @@ td.center, th.center { text-align: center; }
     <section class="tab" id="tab-trade">
       <div id="trade-banner"></div>
       <div id="trade-content"></div>
+    </section>
+
+    <section class="tab" id="tab-orders">
+      <div id="orders-content"></div>
     </section>
 
     <section class="tab" id="tab-trend">
@@ -310,7 +315,7 @@ const fmt = {
   datetime: d => {
     const mo = String(d.getMonth()+1).padStart(2,'0');
     const dy = String(d.getDate()).padStart(2,'0');
-    return `${mo}/${dy}<br>${fmt.time(d)}`;
+    return `${mo}/${dy} ${fmt.time(d)}`;
   },
 };
 
@@ -459,16 +464,19 @@ async function enterApp() {
 async function loadAllData() {
   if (!SESSION) return;
   try {
-    const [studentsRes, tradesRes, pricesRes] = await Promise.all([
+    const [studentsRes, tradesRes, pricesRes, ordersRes] = await Promise.all([
       sb.from('students').select('id,student_number,name,initial_cash,class_id')
         .eq('class_id', SESSION.classId).limit(500),
       sb.from('trades').select('*')
         .eq('class_id', SESSION.classId).limit(10000),
       sb.from('live_prices').select('ticker,name,sector,market,price,change_amt,change_pct,updated_at').limit(50),
+      sb.from('pending_orders').select('*')
+        .eq('student_id', SESSION.studentId).order('created_at', { ascending: false }).limit(200),
     ]);
 
     CACHE.students = studentsRes.data || [];
     CACHE.trades   = tradesRes.data  || [];
+    CACHE.orders   = ordersRes.data  || [];
 
     // 이전 가격 저장 (깜빡임 효과용)
     CACHE.prevPrices = {};
@@ -644,6 +652,7 @@ function renderAll() {
   else if (!SESSION) return;  // 아래는 로그인 필요
   else if (CURRENT_TAB === 'portfolio')   renderPortfolio();
   else if (CURRENT_TAB === 'trade')       renderTrade();
+  else if (CURRENT_TAB === 'orders')      renderOrders();
 }
 
 // 섹터 → 섹션 매핑
@@ -863,8 +872,6 @@ function openChartModal(ticker) {
   const pctStr = (up?'+':'') + Number(lp.change_pct).toFixed(2) + '%';
 
   // TradingView 심볼 (KRX 기준)
-  const tvSymbol = lp.market === 'KOSDAQ' ? `KOSDAQ:${ticker}` : `KRX:${ticker}`;
-
   const port = SESSION ? getPortfolio(SESSION.studentId) : null;
   const held = port?.items.find(i => i.ticker === ticker)?.qty || 0;
   const s = getSessionStatus();
@@ -894,13 +901,16 @@ function openChartModal(ticker) {
 
     <!-- TradingView 차트 -->
     <div style="margin-bottom:14px;">
-      <div style="display:flex; gap:6px; margin-bottom:8px;" id="chart-interval-btns">
-        <button class="btn btn-sm btn-primary" onclick="loadTVChart('${tvSymbol}','1')" id="iv-1">1분</button>
-        <button class="btn btn-sm" onclick="loadTVChart('${tvSymbol}','5')" id="iv-5">5분</button>
-        <button class="btn btn-sm" onclick="loadTVChart('${tvSymbol}','D')" id="iv-D">일봉</button>
-        <button class="btn btn-sm" onclick="loadTVChart('${tvSymbol}','W')" id="iv-W">주봉</button>
+      <div style="display:flex; gap:6px; margin-bottom:8px; flex-wrap:wrap;" id="chart-interval-btns">
+        <button class="btn btn-sm btn-primary" onclick="loadNaverChart('${ticker}','candle/day')" id="iv-candle_day">일봉</button>
+        <button class="btn btn-sm" onclick="loadNaverChart('${ticker}','candle/week')" id="iv-candle_week">주봉</button>
+        <button class="btn btn-sm" onclick="loadNaverChart('${ticker}','candle/month')" id="iv-candle_month">월봉</button>
+        <button class="btn btn-sm" onclick="loadNaverChart('${ticker}','area/month3')" id="iv-area_month3">3개월</button>
+        <a href="https://finance.naver.com/item/main.naver?code=${ticker}" target="_blank" class="btn btn-sm" style="margin-left:auto;">네이버 증권 ↗</a>
       </div>
-      <div id="tv-chart-container" style="height:360px; border-radius:8px; overflow:hidden; background:#f8fafc;"></div>
+      <div id="tv-chart-container" style="height:320px; border-radius:8px; overflow:hidden; background:#f8fafc; display:flex; align-items:center; justify-content:center;">
+        <span style="color:var(--t3);">차트 로딩 중...</span>
+      </div>
     </div>
 
     ${tradeButtons}
@@ -911,48 +921,168 @@ function openChartModal(ticker) {
   document.getElementById('modal-content').style.width = '100%';
 
   // 기본 일봉 차트 로드
-  setTimeout(() => loadTVChart(tvSymbol, 'D'), 100);
+  setTimeout(() => loadNaverChart(ticker, 'candle/day'), 100);
 }
 
-function loadTVChart(symbol, interval) {
+function loadNaverChart(ticker, chartType) {
   const container = document.getElementById('tv-chart-container');
   if (!container) return;
 
-  // 인터벌 버튼 활성화
-  ['1','5','D','W'].forEach(iv => {
-    const btn = document.getElementById('iv-'+iv);
-    if (btn) btn.className = iv === interval ? 'btn btn-sm btn-primary' : 'btn btn-sm';
+  // 버튼 활성화
+  ['candle/day','candle/week','candle/month','area/month3'].forEach(t => {
+    const id = 'iv-' + t.replace('/','_');
+    const btn = document.getElementById(id);
+    if (btn) btn.className = t === chartType ? 'btn btn-sm btn-primary' : 'btn btn-sm';
   });
 
-  container.innerHTML = '';
-  const script = document.createElement('script');
-  script.src = 'https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js';
-  script.async = true;
-  script.innerHTML = JSON.stringify({
-    autosize: true,
-    symbol: symbol,
-    interval: interval,
-    timezone: 'Asia/Seoul',
-    theme: 'light',
-    style: '1',
-    locale: 'kr',
-    hide_top_toolbar: false,
-    hide_legend: false,
-    allow_symbol_change: false,
-    save_image: false,
-    calendar: false,
-    support_host: 'https://www.tradingview.com',
-  });
+  // 네이버 증권 차트 이미지 URL
+  const ts = Date.now();
+  const imgUrl = `https://ssl.pstatic.net/imgfinance/chart/mobile/${chartType}/${ticker}_end.png?${ts}`;
 
-  const wrap = document.createElement('div');
-  wrap.className = 'tradingview-widget-container';
-  wrap.style.cssText = 'height:100%; width:100%;';
-  const inner = document.createElement('div');
-  inner.className = 'tradingview-widget-container__widget';
-  inner.style.cssText = 'height:100%; width:100%;';
-  wrap.appendChild(inner);
-  wrap.appendChild(script);
-  container.appendChild(wrap);
+  container.innerHTML = `
+    <div style="position:relative; width:100%; height:100%; background:#fff; border-radius:8px; overflow:hidden; display:flex; align-items:center; justify-content:center;">
+      <img
+        src="${imgUrl}"
+        alt="차트"
+        style="max-width:100%; max-height:100%; object-fit:contain;"
+        onerror="this.parentElement.innerHTML='<div style=\'padding:20px; color:var(--t3); text-align:center;\'>차트 이미지를 불러올 수 없습니다</div>'"
+      >
+    </div>`;
+}
+
+// --- 지정가 미리보기 ---
+function updateLimitPreview(ticker, action) {
+  const lp = CACHE.livePrices[ticker];
+  const price = lp?.price || 0;
+  const qty = parseInt(document.getElementById('t-qty')?.value) || 0;
+  const targetPrice = parseInt(document.getElementById('t-target-price')?.value) || price;
+  const amt = qty * targetPrice;
+  const fee = Math.round(amt * FEE_RATE);
+  const port = getPortfolio(SESSION.studentId);
+
+  let err = null;
+  const ss = getSessionStatus();
+  if (!ss.open) err = `거래 시간이 아닙니다 (${ss.label})`;
+  else if (!qty || qty <= 0) err = '수량은 1 이상이어야 합니다';
+  else if (!targetPrice || targetPrice <= 0) err = '목표 가격을 입력해주세요';
+  else if (action === 'buy' && targetPrice > price) err = `매수 희망가는 현재가(${fmt.num(price)}원) 이하여야 합니다`;
+  else if (action === 'sell' && targetPrice < price) err = `매도 희망가는 현재가(${fmt.num(price)}원) 이상이어야 합니다`;
+  else if (action === 'buy' && (amt + fee) > port.cash) err = `현금 부족 (필요: ${fmt.krw(amt+fee)}, 보유: ${fmt.krw(port.cash)})`;
+  else if (action === 'sell') {
+    const held = port.items.find(i => i.ticker === ticker)?.qty || 0;
+    if (held < qty) err = `보유 수량 부족 (보유: ${fmt.num(held)}주)`;
+  }
+
+  document.getElementById('t-preview').innerHTML = `
+    <div>목표가 <strong>${fmt.num(targetPrice)}원</strong></div>
+    <div>예상 금액 <strong>${fmt.krw(amt)}</strong></div>
+    <div>예상 수수료 <strong style="color:var(--warn);">${fmt.krw(fee)}</strong></div>
+    ${err ? `<div style="margin-top:8px; color:var(--no); font-weight:600;">⚠ ${err}</div>` : ''}
+  `;
+}
+
+// --- 지정가 주문 등록 ---
+let ORDER_LOCK = false;
+async function doLimitOrder(ticker, action) {
+  if (ORDER_LOCK) return toast('처리 중입니다', 'danger');
+  const qty = parseInt(document.getElementById('t-qty')?.value);
+  const targetPrice = parseInt(document.getElementById('t-target-price')?.value);
+  const lp = CACHE.livePrices[ticker];
+  const price = lp?.price || 0;
+
+  if (!qty || qty <= 0) return toast('수량을 입력해주세요', 'danger');
+  if (!targetPrice || targetPrice <= 0) return toast('목표 가격을 입력해주세요', 'danger');
+  const s = getSessionStatus();
+  if (!s.open) return toast(`거래 시간이 아닙니다 (${s.label})`, 'danger');
+  if (action === 'buy' && targetPrice > price) return toast(`매수 희망가는 현재가(${fmt.num(price)}원) 이하여야 합니다`, 'danger');
+  if (action === 'sell' && targetPrice < price) return toast(`매도 희망가는 현재가(${fmt.num(price)}원) 이상이어야 합니다`, 'danger');
+
+  ORDER_LOCK = true;
+  try {
+    const { error } = await sb.from('pending_orders').insert({
+      class_id: SESSION.classId,
+      student_id: SESSION.studentId,
+      ticker, action, qty,
+      target_price: targetPrice,
+      status: 'pending',
+      created_at: new Date().toISOString(),
+    });
+    if (error) throw error;
+    closeModal();
+    await loadAllData();
+    renderAll();
+    toast(`${action==='buy'?'매수':'매도'} 예약 등록 완료 (목표가: ${fmt.num(targetPrice)}원)`, 'success');
+  } catch(e) {
+    toast('예약 실패: ' + (e.message || ''), 'danger');
+  } finally { ORDER_LOCK = false; }
+}
+
+// --- 예약 주문 탭 ---
+function renderOrders() {
+  const orders = CACHE.orders || [];
+  const pending  = orders.filter(o => o.status === 'pending');
+  const filled   = orders.filter(o => o.status === 'filled');
+  const cancelled = orders.filter(o => o.status === 'cancelled');
+
+  function orderRow(o, showCancel=false) {
+    const lp = CACHE.livePrices[o.ticker];
+    const name = lp?.name || o.ticker;
+    const currentPrice = lp?.price || 0;
+    const dt = new Date(o.created_at);
+    const diff = currentPrice - o.target_price;
+    const diffPct = o.target_price > 0 ? (diff / o.target_price * 100).toFixed(2) : '0';
+    const gap = o.action === 'buy'
+      ? `현재가까지 <span class="${diff>0?'text-danger':'text-success'}">${diff>0?'+':''}${fmt.num(diff)}원 (${diff>0?'+':''}${diffPct}%)</span>`
+      : `현재가까지 <span class="${diff<0?'text-danger':'text-success'}">${diff>=0?'+':''}${fmt.num(diff)}원 (${diff>=0?'+':''}${diffPct}%)</span>`;
+
+    return `<tr>
+      <td class="center text-sm">${fmt.datetime(dt)}</td>
+      <td><strong>${name}</strong></td>
+      <td class="center"><span class="badge badge-${o.action==='buy'?'buy':'sell'}">${o.action==='buy'?'매수':'매도'}</span></td>
+      <td class="num">${fmt.num(o.qty)}주</td>
+      <td class="num font-bold">${fmt.num(o.target_price)}원</td>
+      <td class="num">${fmt.num(currentPrice)}원</td>
+      <td class="text-sm">${o.status==='pending' ? gap : ''}</td>
+      ${showCancel ? `<td class="center"><button class="btn btn-sm btn-danger" onclick="cancelOrder('${o.id}')">취소</button></td>` : '<td></td>'}
+    </tr>`;
+  }
+
+  const thead = `<thead><tr>
+    <th class="center">등록시각</th><th>종목</th><th class="center">구분</th>
+    <th class="num">수량</th><th class="num">목표가</th><th class="num">현재가</th>
+    <th>현재가 대비</th><th class="center">관리</th>
+  </tr></thead>`;
+
+  document.getElementById('orders-content').innerHTML = `
+    <div class="card">
+      <div class="card-title">⏳ 미체결 주문 <span>${pending.length}건</span></div>
+      ${pending.length === 0
+        ? '<div class="empty">미체결 예약 주문이 없습니다</div>'
+        : `<div class="table-wrap"><table>${thead}<tbody>${pending.map(o=>orderRow(o,true)).join('')}</tbody></table></div>`}
+    </div>
+    ${filled.length > 0 ? `
+    <div class="card">
+      <div class="card-title">✅ 체결 완료 <span>${filled.length}건</span></div>
+      <div class="table-wrap"><table>${thead}<tbody>${filled.map(o=>orderRow(o,false)).join('')}</tbody></table></div>
+    </div>` : ''}
+    ${cancelled.length > 0 ? `
+    <div class="card">
+      <div class="card-title" style="color:var(--t3);">❌ 취소된 주문 <span>${cancelled.length}건</span></div>
+      <div class="table-wrap"><table>${thead}<tbody>${cancelled.map(o=>orderRow(o,false)).join('')}</tbody></table></div>
+    </div>` : ''}
+  `;
+}
+
+async function cancelOrder(id) {
+  if (!confirm('예약 주문을 취소하시겠습니까?')) return;
+  const { error } = await sb.from('pending_orders')
+    .update({ status: 'cancelled' })
+    .eq('id', id)
+    .eq('student_id', SESSION.studentId);
+  if (error) { toast('취소 실패: ' + error.message, 'danger'); return; }
+  await loadAllData();
+  renderAll();
+  toast('주문 취소 완료', 'success');
 }
 
 // --- 거래 탭 ---
@@ -1004,7 +1134,7 @@ function renderTrade() {
 }
 
 // --- 거래 모달 ---
-function openTradeModal(ticker, action) {
+function openTradeModal(ticker, action, mode='instant') {
   const lp = CACHE.livePrices[ticker];
   const price = lp?.price || 0;
   const port = getPortfolio(SESSION.studentId);
@@ -1020,21 +1150,44 @@ function openTradeModal(ticker, action) {
       <div>현금 잔고: <strong>${fmt.krw(port.cash)}</strong></div>
       ${action==='sell' ? `<div>보유 수량: <strong>${fmt.num(held)}주</strong></div>` : ''}
     </div>
+
+    <!-- 주문 방식 선택 -->
+    <div style="display:flex; gap:6px; margin-bottom:14px;">
+      <button id="mode-instant" class="btn ${mode==='instant'?'btn-primary':''}" style="flex:1;"
+        onclick="openTradeModal('${ticker}','${action}','instant')">즉시 체결</button>
+      <button id="mode-limit" class="btn ${mode==='limit'?'btn-primary':''}" style="flex:1;"
+        onclick="openTradeModal('${ticker}','${action}','limit')">지정가 주문</button>
+    </div>
+
     <div class="form-group">
       <label class="form-label">수량 (주)</label>
       <input class="form-input" type="number" id="t-qty" min="1" value="1"
-        oninput="updateTradePreview('${ticker}','${action}')">
+        oninput="${mode==='instant'?`updateTradePreview('${ticker}','${action}')`:`updateLimitPreview('${ticker}','${action}')`}">
     </div>
+
+    ${mode==='limit' ? `
+    <div class="form-group">
+      <label class="form-label">${action==='buy'?'매수 희망가 (현재가 이하)':'매도 희망가 (현재가 이상)'}</label>
+      <input class="form-input" type="number" id="t-target-price" min="1" value="${price}"
+        oninput="updateLimitPreview('${ticker}','${action}')">
+    </div>
+    <div class="alert alert-info" style="font-size:12px; margin-bottom:10px;">
+      ${action==='buy'
+        ? '현재가 이하로 내려오면 자동 매수됩니다'
+        : '현재가 이상으로 올라가면 자동 매도됩니다'}
+    </div>` : ''}
+
     <div id="t-preview" class="preview-box"></div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">취소</button>
-      <button class="btn ${action==='buy'?'btn-buy':'btn-sell'}" onclick="doTrade('${ticker}','${action}')">
-        ${action==='buy'?'매수 체결':'매도 체결'}
+      <button class="btn ${action==='buy'?'btn-buy':'btn-sell'}" onclick="${mode==='instant'?`doTrade('${ticker}','${action}')`:`doLimitOrder('${ticker}','${action}')`}">
+        ${mode==='instant' ? (action==='buy'?'매수 체결':'매도 체결') : (action==='buy'?'매수 예약':'매도 예약')}
       </button>
     </div>
   `);
   setTimeout(() => document.getElementById('t-qty')?.focus(), 50);
-  updateTradePreview(ticker, action);
+  if (mode==='instant') updateTradePreview(ticker, action);
+  else updateLimitPreview(ticker, action);
 }
 
 function updateTradePreview(ticker, action) {
