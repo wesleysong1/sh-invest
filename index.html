@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>전주신흥중학교 모의투자 — 학생</title>
+<title>전주신흥중학교 여름방학 모의투자대회 — 학생</title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
 <style>
@@ -661,7 +661,7 @@ const SECTOR_GROUPS = [
   { label: '자동차 · 방산', sectors: ['자동차','자동차부품','방산'] },
   { label: '금융', sectors: ['금융','증권'] },
   { label: '바이오 · 제약', sectors: ['바이오','제약'] },
-  { label: '에너지 · 소재', sectors: ['2차전지','원전','전력','철강'] },
+  { label: '에너지 · 소재', sectors: ['2차전지','원전','전력','철강','에너지'] },
   { label: '산업 · 인프라', sectors: ['조선','전기장비','전자','디스플레이','통신'] },
   { label: '소비 · 서비스', sectors: ['유통','화장품','게임','로봇'] },
 ];
@@ -889,7 +889,10 @@ function openChartModal(ticker) {
     <div class="modal-head">
       <div>
         <div class="modal-title">${lp.name}</div>
-        <div style="font-size:12px; color:var(--t3);">${ticker} · ${lp.sector||''}</div>
+        <div style="font-size:12px; color:var(--t3); margin-top:2px;">
+          ${lp.sector ? `<span style="background:var(--p-soft); color:var(--p); padding:1px 7px; border-radius:4px; font-weight:600; margin-right:6px;">${lp.sector}</span>` : ''}
+          <span>${ticker} · ${lp.market||'KOSPI'}</span>
+        </div>
       </div>
       <button class="modal-close" onclick="closeModal()">×</button>
     </div>
