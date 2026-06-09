@@ -530,13 +530,8 @@ function switchRegTab(tab) {
 
 // CSV 양식 다운로드
 function downloadCSVTemplate() {
-  const sample = [
-    '3101,홍길동,Test@1234',
-    '3102,김철수,Pass#5678',
-    '3103,이영희,Hello@9012',
-  ].join('
-');
-  const blob = new Blob(['﻿' + sample], { type: 'text/csv;charset=utf-8;' });
+  const sample = '3101,홍길동,Test@1234\n3102,김철수,Pass#5678\n3103,이영희,Hello@9012';
+  const blob = new Blob(['\uFEFF' + sample], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url; a.download = '학생명단_양식.csv';
@@ -964,18 +959,16 @@ function renderTrend() {
 // =====================================================================
 // 탭 전환
 // =====================================================================
-document.addEventListener('DOMContentLoaded', () => {
-  document.querySelectorAll('.nav-tab').forEach(item => {
-    item.addEventListener('click', () => {
-      CURRENT_TAB = item.dataset.tab;
-      document.querySelectorAll('.nav-tab').forEach(n => n.classList.toggle('active', n.dataset.tab===CURRENT_TAB));
-      document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.id===`tab-${CURRENT_TAB}`));
-      renderAll();
-    });
+document.querySelectorAll('.nav-tab').forEach(item => {
+  item.addEventListener('click', () => {
+    CURRENT_TAB = item.dataset.tab;
+    document.querySelectorAll('.nav-tab').forEach(n => n.classList.toggle('active', n.dataset.tab===CURRENT_TAB));
+    document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.id===`tab-${CURRENT_TAB}`));
+    renderAll();
   });
-  document.getElementById('modal').addEventListener('click', e => { if(e.target.id==='modal') closeModal(); });
-  document.addEventListener('keydown', e => { if(e.key==='Escape') closeModal(); });
 });
+document.getElementById('modal').addEventListener('click', e => { if(e.target.id==='modal') closeModal(); });
+document.addEventListener('keydown', e => { if(e.key==='Escape') closeModal(); });
 
 // =====================================================================
 // 초기화
