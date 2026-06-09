@@ -217,18 +217,56 @@ input:checked + .toggle-slider:before { transform: translateX(22px); }
     <!-- 학생 관리 -->
     <section class="tab" id="tab-students">
       <div class="card">
-        <div class="card-title">📤 학생 일괄 등록 <span>CSV 형식: 학번,이름,비밀번호</span></div>
-        <div class="alert alert-info" style="margin-bottom:12px;">
-          CSV 파일 형식: <strong>학번,이름,비밀번호</strong> (헤더 없이 데이터만)<br>
-          예시) 3101,김도은,Test@1234
+        <div class="card-title">📤 학생 등록</div>
+
+        <!-- 탭 선택 -->
+        <div style="display:flex; gap:6px; margin-bottom:16px;">
+          <button id="reg-tab-csv" class="btn btn-primary btn-sm" onclick="switchRegTab('csv')">CSV 업로드</button>
+          <button id="reg-tab-manual" class="btn btn-sm" onclick="switchRegTab('manual')">수동 입력</button>
         </div>
-        <div class="upload-area" id="upload-area" onclick="document.getElementById('csv-file').click()" ondragover="event.preventDefault(); this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="handleDrop(event)">
-          <input type="file" id="csv-file" accept=".csv" onchange="handleCSV(this.files[0])">
-          <div style="font-size:32px; margin-bottom:8px;">📂</div>
-          <div style="font-weight:600; margin-bottom:4px;">CSV 파일을 드래그하거나 클릭해서 업로드</div>
-          <div style="font-size:12px;">학번, 이름, 비밀번호 컬럼</div>
+
+        <!-- CSV 업로드 탭 -->
+        <div id="reg-csv">
+          <div style="display:flex; gap:8px; margin-bottom:10px; align-items:center;">
+            <div class="alert alert-info" style="margin:0; flex:1; font-size:12px;">
+              형식: <strong>학번,이름,비밀번호</strong> (헤더 없이 데이터만) &nbsp;예시) 3101,김도은,Test@1234
+            </div>
+            <button class="btn btn-sm" onclick="downloadCSVTemplate()">📥 양식 다운로드</button>
+          </div>
+          <div class="upload-area" id="upload-area" onclick="document.getElementById('csv-file').click()" ondragover="event.preventDefault(); this.classList.add('drag')" ondragleave="this.classList.remove('drag')" ondrop="handleDrop(event)">
+            <input type="file" id="csv-file" accept=".csv" onchange="handleCSV(this.files[0])">
+            <div style="font-size:32px; margin-bottom:8px;">📂</div>
+            <div style="font-weight:600; margin-bottom:4px;">CSV 파일을 드래그하거나 클릭해서 업로드</div>
+            <div style="font-size:12px;">학번, 이름, 비밀번호 컬럼</div>
+          </div>
+          <div id="csv-preview" style="margin-top:12px;"></div>
         </div>
-        <div id="csv-preview" style="margin-top:12px;"></div>
+
+        <!-- 수동 입력 탭 -->
+        <div id="reg-manual" style="display:none;">
+          <div style="display:grid; grid-template-columns:1fr 1fr 1fr auto; gap:8px; align-items:end; margin-bottom:10px;">
+            <div>
+              <label class="form-label">학번</label>
+              <input class="form-input" type="text" id="manual-num" placeholder="예: 3101" maxlength="4" inputmode="numeric">
+            </div>
+            <div>
+              <label class="form-label">이름</label>
+              <input class="form-input" type="text" id="manual-name" placeholder="홍길동">
+            </div>
+            <div>
+              <label class="form-label">비밀번호</label>
+              <input class="form-input" type="text" id="manual-pw" placeholder="Test@1234">
+            </div>
+            <button class="btn btn-primary" onclick="addManualRow()" style="white-space:nowrap;">+ 추가</button>
+          </div>
+
+          <div id="manual-list" style="margin-bottom:12px;"></div>
+
+          <div style="display:flex; gap:8px;">
+            <button class="btn btn-success" onclick="uploadManualStudents()" id="btn-manual-upload" style="display:none;">등록 확정</button>
+            <button class="btn" onclick="clearManualList()" id="btn-manual-clear" style="display:none;">목록 초기화</button>
+          </div>
+        </div>
       </div>
       <div class="card">
         <div class="card-title">👥 학생 목록 <span id="student-count"></span>
@@ -513,6 +551,101 @@ function renderStudents() {
       <tbody>${rows}</tbody>
     </table></div>`;
 }
+
+// 등록 탭 전환
+function switchRegTab(tab) {
+  document.getElementById('reg-csv').style.display    = tab === 'csv'    ? 'block' : 'none';
+  document.getElementById('reg-manual').style.display = tab === 'manual' ? 'block' : 'none';
+  document.getElementById('reg-tab-csv').className    = 'btn btn-sm ' + (tab === 'csv'    ? 'btn-primary' : '');
+  document.getElementById('reg-tab-manual').className = 'btn btn-sm ' + (tab === 'manual' ? 'btn-primary' : '');
+}
+
+// CSV 양식 다운로드
+function downloadCSVTemplate() {
+  const sample = [
+    '3101,홍길동,Test@1234',
+    '3102,김철수,Pass#5678',
+    '3103,이영희,Hello@9012',
+  ].join('
+');
+  const blob = new Blob(['﻿' + sample], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = '학생명단_양식.csv';
+  a.click(); URL.revokeObjectURL(url);
+}
+
+// 수동 입력
+let manualStudents = [];
+
+function addManualRow() {
+  const num  = document.getElementById('manual-num').value.trim();
+  const name = document.getElementById('manual-name').value.trim();
+  const pw   = document.getElementById('manual-pw').value.trim();
+
+  if (!num || !name || !pw) return toast('학번, 이름, 비밀번호를 모두 입력해주세요', 'danger');
+  if (manualStudents.find(s => s.student_number === num)) return toast('이미 추가된 학번입니다', 'danger');
+
+  manualStudents.push({ student_number: num, name, pin: pw });
+  document.getElementById('manual-num').value = '';
+  document.getElementById('manual-name').value = '';
+  document.getElementById('manual-pw').value = '';
+  document.getElementById('manual-num').focus();
+  renderManualList();
+}
+
+function renderManualList() {
+  const el = document.getElementById('manual-list');
+  if (manualStudents.length === 0) {
+    el.innerHTML = '';
+    document.getElementById('btn-manual-upload').style.display = 'none';
+    document.getElementById('btn-manual-clear').style.display  = 'none';
+    return;
+  }
+  document.getElementById('btn-manual-upload').style.display = 'inline-flex';
+  document.getElementById('btn-manual-clear').style.display  = 'inline-flex';
+
+  el.innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>학번</th><th>이름</th><th>비밀번호</th><th class="center">삭제</th></tr></thead>
+        <tbody>${manualStudents.map((s, i) => `<tr>
+          <td>${s.student_number}</td>
+          <td>${s.name}</td>
+          <td>${s.pin}</td>
+          <td class="center"><button class="btn btn-sm btn-danger" onclick="removeManualRow(${i})">✕</button></td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>
+    <div class="text-sm text-muted" style="margin-top:6px;">총 ${manualStudents.length}명</div>`;
+}
+
+function removeManualRow(idx) {
+  manualStudents.splice(idx, 1);
+  renderManualList();
+}
+
+function clearManualList() {
+  if (!confirm('목록을 초기화하시겠습니까?')) return;
+  manualStudents = [];
+  renderManualList();
+}
+
+async function uploadManualStudents() {
+  if (manualStudents.length === 0) return toast('등록할 학생이 없습니다', 'danger');
+  await uploadStudents(manualStudents);
+  manualStudents = [];
+  renderManualList();
+}
+
+// 수동 입력 엔터키 지원
+document.addEventListener('DOMContentLoaded', () => {
+  ['manual-num','manual-name','manual-pw'].forEach(id => {
+    document.getElementById(id)?.addEventListener('keydown', e => {
+      if (e.key === 'Enter') addManualRow();
+    });
+  });
+});
 
 // CSV 처리
 function handleDrop(e) {
