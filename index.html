@@ -530,9 +530,26 @@ function subscribeRealtime() {
         else if (CURRENT_TAB === 'portfolio') renderPortfolio();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'trades',
-          filter: `class_id=eq.${SESSION.classId}` }, async () => {
+          filter: `student_id=eq.${SESSION.studentId}` }, async () => {
         await loadAllData();
         renderAll();
+      })
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'pending_orders',
+          filter: `student_id=eq.${SESSION.studentId}` }, async (payload) => {
+        const row = payload.new;
+        if (row?.status === 'filled') {
+          const lp = CACHE.livePrices[row.ticker];
+          const name = lp?.name || row.ticker;
+          const action = row.action === 'buy' ? '매수' : '매도';
+          toast(`🎉 ${name} ${action} 체결! (${fmt.num(row.qty)}주 × ${fmt.num(row.target_price)}원)`, 'success');
+          await loadAllData();
+          renderAll();
+        } else if (row?.status === 'cancelled') {
+          const lp = CACHE.livePrices[row.ticker];
+          toast(`⚠️ ${lp?.name || row.ticker} 예약 주문 자동 취소됨`, 'warn');
+          await loadAllData();
+          renderAll();
+        }
       })
       .subscribe();
   } catch (e) {
