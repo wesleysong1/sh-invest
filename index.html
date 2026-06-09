@@ -51,6 +51,8 @@ button { font-family: inherit; }
 .header-stats strong { color: var(--t1); margin-left: 4px; }
 .header-user { display: flex; gap: 8px; align-items: center; font-size: 13px; }
 .price-flash { animation: flash 0.6s ease; }
+.blink-dot { width:8px; height:8px; border-radius:50%; background:#16a34a; display:inline-block; animation:blink 1.5s ease-in-out infinite; flex-shrink:0; }
+@keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.2;} }
 @keyframes flash { 0%,100%{background:transparent} 50%{background:#fef08a} }
 .price-up { color: var(--ok) !important; }
 .price-down { color: var(--no) !important; }
@@ -230,7 +232,7 @@ td.center, th.center { text-align: center; }
   <main class="main">
     <section class="tab active" id="tab-market">
       <div class="card">
-        <div class="card-title">국내 주식 시세 <span class="text-sm text-muted" id="market-updated"></span></div>
+        <div class="card-title">국내 주식 시세 <span id="market-updated" style="font-size:12px; font-weight:400; color:var(--t3); display:inline-flex; align-items:center; gap:5px;"></span></div>
         <div id="market-kospi"></div>
       </div>
     </section>
@@ -551,12 +553,35 @@ function flashPriceCell(ticker) {
 }
 
 // =====================================================================
+// 갱신 상태 표시
+// =====================================================================
+function updateMarketStatus() {
+  const el = document.getElementById('market-updated');
+  if (!el) return;
+  if (!CACHE.lastUpdated) { el.innerHTML = ''; return; }
+
+  if (CACHE.justRefreshed) {
+    el.innerHTML = '<span class="blink-dot"></span> 방금 갱신됨';
+    return;
+  }
+
+  const elapsed = Math.floor((Date.now() - CACHE.lastUpdated.getTime()) / 1000);
+  const remaining = Math.max(0, 60 - elapsed);
+
+  if (remaining <= 0) {
+    el.innerHTML = '<span class="blink-dot"></span> 갱신 중...';
+  } else {
+    el.innerHTML = `<span class="blink-dot"></span> ${remaining}초 후 갱신`;
+  }
+}
+
+// =====================================================================
 // 시계 (헤더 실시간 시각 + 세션 배지)
 // =====================================================================
 function startClock() {
   if (clockTimer) clearInterval(clockTimer);
   updateClock();
-  clockTimer = setInterval(updateClock, 1000);
+  clockTimer = setInterval(() => { updateClock(); updateMarketStatus(); }, 1000);
 }
 function updateClock() {
   const now = nowKST();
@@ -673,8 +698,10 @@ function renderMarket() {
   }
   const latest = prices.reduce((a,b) => (a.updated_at > b.updated_at ? a : b), prices[0]);
   if (latest?.updated_at) {
-    document.getElementById('market-updated').textContent =
-      '갱신: ' + fmt.datetime(new Date(latest.updated_at));
+    CACHE.lastUpdated = new Date(latest.updated_at);
+    CACHE.justRefreshed = true;
+    updateMarketStatus();
+    setTimeout(() => { CACHE.justRefreshed = false; }, 3000);
   }
 
   function makeCard(ticker, lp) {
@@ -1644,6 +1671,10 @@ function subscribePublicPrices() {
             updated_at: row.updated_at,
           };
           flashPriceCell(row.ticker);
+          CACHE.lastUpdated = new Date(row.updated_at);
+          CACHE.justRefreshed = true;
+          updateMarketStatus();
+          setTimeout(() => { CACHE.justRefreshed = false; }, 3000);
         }
         if (CURRENT_TAB === 'market') renderMarket();
       })
