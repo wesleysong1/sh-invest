@@ -3,6 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2563eb">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="신흥 모의투자">
+<link rel="apple-touch-icon" href="icon-192.png">
 <title>전주신흥중학교 모의투자 — 학생</title>
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css">
@@ -417,12 +424,31 @@ function openLoginModal(targetTab) {
       <input class="form-input" type="password" id="login-pin" placeholder="비밀번호"
         autocomplete="off" onkeydown="if(event.key==='Enter') doLogin()">
     </div>
+    <label style="display:flex; align-items:center; gap:8px; font-size:13px; color:var(--t2); margin-bottom:8px; cursor:pointer;">
+      <input type="checkbox" id="login-auto" style="width:15px; height:15px;">
+      이 기기에서 자동 로그인
+    </label>
     <div class="login-error" id="login-error"></div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">취소</button>
       <button class="btn btn-primary" onclick="doLogin('${targetTab||''}')">로그인</button>
     </div>
   `);
+  // 자동 로그인 저장된 정보 불러오기
+  const saved = localStorage.getItem('rt_autologin_v1');
+  if (saved) {
+    try {
+      const info = JSON.parse(saved);
+      const numEl = document.getElementById('login-student-number');
+      const nameEl = document.getElementById('login-name');
+      const pinEl = document.getElementById('login-pin');
+      const autoEl = document.getElementById('login-auto');
+      if (numEl) numEl.value = info.num || '';
+      if (nameEl) nameEl.value = info.name || '';
+      if (pinEl) pinEl.value = info.pin || '';
+      if (autoEl) autoEl.checked = true;
+    } catch {}
+  }
   setTimeout(() => document.getElementById('login-student-number')?.focus(), 50);
 }
 
@@ -456,6 +482,13 @@ async function doLogin(targetTab) {
       return;
     }
     localStorage.setItem(SESSION_KEY, JSON.stringify(SESSION));
+    // 자동 로그인 체크박스 처리
+    const autoLogin = document.getElementById('login-auto');
+    if (autoLogin?.checked) {
+      localStorage.setItem('rt_autologin_v1', JSON.stringify({ num, name, pin }));
+    } else {
+      localStorage.removeItem('rt_autologin_v1');
+    }
     closeModal();
     await enterApp();
     // 로그인 전 클릭했던 탭으로 이동
@@ -2016,6 +2049,35 @@ async function init() {
       SESSION = JSON.parse(saved);
       await enterApp();
     } catch { localStorage.removeItem(SESSION_KEY); }
+  } else {
+    // 자동 로그인 정보가 있으면 자동으로 로그인 시도
+    const autoInfo = localStorage.getItem('rt_autologin_v1');
+    if (autoInfo) {
+      try {
+        const info = JSON.parse(autoInfo);
+        const { data, error } = await sb.rpc('student_login', {
+          p_student_number: info.num, p_name: info.name, p_pin: info.pin
+        });
+        if (!error && data?.success) {
+          SESSION = {
+            studentId: data.student_id,
+            classId:   data.class_id,
+            studentNumber: info.num,
+            studentName: data.name,
+          };
+          if (info.num === '0000' && info.name === 'ssong0129') {
+            localStorage.setItem('rt_teacher_session_v1', '1');
+            location.href = 'teacher.html';
+          } else {
+            localStorage.setItem(SESSION_KEY, JSON.stringify(SESSION));
+            await enterApp();
+          }
+        } else {
+          // 자동 로그인 실패 시 저장 정보 삭제
+          localStorage.removeItem('rt_autologin_v1');
+        }
+      } catch { localStorage.removeItem('rt_autologin_v1'); }
+    }
   }
 }
 
@@ -2079,6 +2141,15 @@ function subscribePublicPrices() {
 }
 
 init();
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./service-worker.js')
+      .then(reg => console.log('SW 등록 완료:', reg.scope))
+      .catch(err => console.warn('SW 등록 실패:', err));
+  });
+}
 </script>
 </body>
 </html>
