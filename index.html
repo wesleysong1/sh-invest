@@ -1362,19 +1362,17 @@ function openTradeModal(ticker, action, mode='instant') {
     </div>
 
     <div class="form-group">
-      <label class="form-label" style="display:flex; justify-content:space-between; align-items:center;">
-        <span>수량 (주)</span>
-        ${action==='buy'
-          ? `<button type="button" class="btn btn-sm" style="font-size:11px; padding:2px 8px;" onclick="setMaxQty('${ticker}','${mode}')">최대 수량</button>`
-          : `<button type="button" class="btn btn-sm" style="font-size:11px; padding:2px 8px;" onclick="setAllQty('${ticker}')">전량</button>`}
-      </label>
+      <label class="form-label">수량 (주)</label>
       <input class="form-input" type="number" id="t-qty" min="1" value="1"
         oninput="${mode==='instant'?`updateTradePreview('${ticker}','${action}')`:`updateLimitPreview('${ticker}','${action}')`}">
       <div style="display:flex; gap:4px; margin-top:6px; flex-wrap:wrap;">
         <button type="button" class="btn btn-sm" style="flex:1; font-size:11px;" onclick="addQty(1,'${ticker}','${action}','${mode}')">+1주</button>
         <button type="button" class="btn btn-sm" style="flex:1; font-size:11px;" onclick="addQty(10,'${ticker}','${action}','${mode}')">+10주</button>
         <button type="button" class="btn btn-sm" style="flex:1; font-size:11px;" onclick="addQty(100,'${ticker}','${action}','${mode}')">+100주</button>
-        <button type="button" class="btn btn-sm" style="flex:1; font-size:11px; color:var(--t3);" onclick="resetQty('${ticker}','${action}','${mode}')">초기화</button>
+        ${action==='buy'
+          ? `<button type="button" class="btn btn-sm" style="flex:1; font-size:11px;" onclick="setMaxQty('${ticker}','${mode}')">최대</button>`
+          : `<button type="button" class="btn btn-sm" style="flex:1; font-size:11px;" onclick="setAllQty('${ticker}')">전량</button>`}
+        <button type="button" class="btn btn-sm" style="flex:1; font-size:11px;" onclick="resetQty('${ticker}','${action}','${mode}')">초기화</button>
       </div>
     </div>
 
