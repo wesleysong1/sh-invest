@@ -216,6 +216,7 @@ td.center, th.center { text-align: center; }
       </div>
       <div class="header-user" id="header-user-area">
         <span id="hdr-name"></span>
+        <button class="btn btn-sm" id="btn-admin" onclick="window.location.href='teacher.html'" style="display:none;">📋 관리자</button>
         <button class="btn btn-sm btn-primary" id="btn-login" onclick="openLoginModal()" style="display:none;">로그인</button>
         <button class="btn btn-sm" id="btn-logout" onclick="doLogout()" style="display:none;">로그아웃</button>
       </div>
@@ -487,9 +488,13 @@ function doLogout() {
 
 function updateHeaderAuth() {
   const loggedIn = !!SESSION;
-  document.getElementById('btn-login').style.display  = loggedIn ? 'none'         : 'inline-flex';
-  document.getElementById('btn-logout').style.display = loggedIn ? 'inline-flex'  : 'none';
-  document.getElementById('hdr-name').textContent     = loggedIn ? SESSION.studentName + ' 학생' : '';
+  document.getElementById('btn-login').style.display   = loggedIn ? 'none'        : 'inline-flex';
+  document.getElementById('btn-logout').style.display  = loggedIn ? 'inline-flex' : 'none';
+  document.getElementById('hdr-name').textContent      = loggedIn ? SESSION.studentName + ' 학생' : '';
+  // ssong0129 계정으로 로그인했을 때만 관리자 버튼 표시
+  const isTeacher = loggedIn && SESSION.studentName === 'ssong0129';
+  const btnAdmin = document.getElementById('btn-admin');
+  if (btnAdmin) btnAdmin.style.display = isTeacher ? 'inline-flex' : 'none';
 }
 
 async function enterApp() {

@@ -144,6 +144,7 @@ input:checked + .toggle-slider:before { transform: translateX(22px); }
     <div class="header-right">
       <span id="hdr-clock" style="color:var(--t3); font-size:12px;"></span>
       <span id="hdr-session"></span>
+      <button class="btn btn-sm btn-primary" onclick="switchToStudent()" title="참여용 계정(송우현)으로 전환">🎮 참여 계정</button>
       <button class="btn btn-sm" onclick="teacherLogout()">로그아웃</button>
     </div>
   </header>
@@ -341,8 +342,33 @@ function showModal(html) { document.getElementById('modal-content').innerHTML = 
 function closeModal() { document.getElementById('modal').classList.remove('active'); }
 
 // =====================================================================
-// 교사 로그아웃
+// 교사 로그아웃 / 계정 전환
 // =====================================================================
+async function switchToStudent() {
+  // 송우현 계정으로 자동 로그인 후 index.html로 이동
+  try {
+    const { data, error } = await sb.rpc('student_login', {
+      p_student_number: '0000',
+      p_name: '송우현',
+      p_pin: '6371'
+    });
+    if (error || !data?.success) {
+      toast('참여 계정 로그인 실패: ' + (data?.message || error?.message || ''), 'danger');
+      return;
+    }
+    const session = {
+      studentId: data.student_id,
+      classId:   data.class_id,
+      studentNumber: '0000',
+      studentName: data.name,
+    };
+    localStorage.setItem('rt_invest_session_v1', JSON.stringify(session));
+    window.location.href = 'index.html';
+  } catch(e) {
+    toast('전환 실패: ' + e.message, 'danger');
+  }
+}
+
 function teacherLogout() {
   if (!confirm('로그아웃 하시겠습니까?')) return;
   localStorage.removeItem(TEACHER_SESSION_KEY);
