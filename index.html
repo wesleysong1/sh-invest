@@ -694,10 +694,33 @@ function getPortfolio(studentId) {
   });
   items.sort((a,b) => b.value - a.value);
 
+  // 미체결 예약 주문 반영
+  const pendingOrders = (CACHE.orders || []).filter(o =>
+    o.student_id === studentId && o.status === 'pending'
+  );
+
+  // 예약 매수: target_price × qty + 수수료 만큼 현금 미리 차감
+  let reservedCash = 0;
+  pendingOrders.filter(o => o.action === 'buy').forEach(o => {
+    const amt = o.target_price * o.qty;
+    reservedCash += amt + Math.round(amt * FEE_RATE);
+  });
+
+  // 예약 매도: 종목별 예약 매도 수량 표시용으로 추가
+  pendingOrders.filter(o => o.action === 'sell').forEach(o => {
+    const item = items.find(i => i.ticker === o.ticker);
+    if (item) item.pendingSellQty = (item.pendingSellQty || 0) + o.qty;
+  });
+
+  const availableCash = cash - reservedCash;
   const totalValue = cash + stockValue;
   const initialCash = Number(student.initial_cash);
   return {
-    student, cash, stockValue, totalValue, initialCash,
+    student,
+    cash: availableCash,   // 사용 가능 현금 (예약금 차감)
+    rawCash: cash,         // 예약금 미차감 현금
+    reservedCash,          // 예약 매수 대기 금액
+    stockValue, totalValue, initialCash,
     gain: totalValue - initialCash,
     returnPct: initialCash > 0 ? (totalValue - initialCash) / initialCash : 0,
     items,
@@ -857,7 +880,11 @@ function renderPortfolio() {
   if (!port) return;
 
   document.getElementById('portfolio-stats').innerHTML = `
-    <div class="stat-card"><div class="stat-label">현금 잔고</div><div class="stat-value">${fmt.krw(port.cash)}</div></div>
+    <div class="stat-card">
+      <div class="stat-label">사용 가능 현금</div>
+      <div class="stat-value">${fmt.krw(port.cash)}</div>
+      ${port.reservedCash > 0 ? `<div class="text-sm text-muted">예약 대기 ${fmt.krw(port.reservedCash)}</div>` : ''}
+    </div>
     <div class="stat-card"><div class="stat-label">주식 평가액</div><div class="stat-value">${fmt.krw(port.stockValue)}</div></div>
     <div class="stat-card"><div class="stat-label">총자산</div><div class="stat-value">${fmt.krw(port.totalValue)}</div></div>
     <div class="stat-card"><div class="stat-label">수익률</div>
@@ -1243,7 +1270,11 @@ function renderTrade() {
 
   document.getElementById('trade-content').innerHTML = `
     <div class="stat-grid">
-      <div class="stat-card"><div class="stat-label">현금 잔고</div><div class="stat-value">${fmt.krw(port.cash)}</div></div>
+      <div class="stat-card">
+        <div class="stat-label">사용 가능 현금</div>
+        <div class="stat-value">${fmt.krw(port.cash)}</div>
+        ${port.reservedCash > 0 ? `<div class="text-sm text-muted">예약 대기 ${fmt.krw(port.reservedCash)}</div>` : ''}
+      </div>
       <div class="stat-card"><div class="stat-label">총자산</div><div class="stat-value">${fmt.krw(port.totalValue)}</div></div>
       <div class="stat-card"><div class="stat-label">수익률</div><div class="stat-value ${port.returnPct>=0?'success':'danger'}">${fmt.pct(port.returnPct*100)}</div></div>
     </div>
