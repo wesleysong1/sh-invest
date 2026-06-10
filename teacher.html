@@ -154,6 +154,7 @@ input:checked + .toggle-slider:before { transform: translateX(22px); }
     <a class="nav-tab" data-tab="trades">📋 거래 관리</a>
     <a class="nav-tab" data-tab="ranking">🏆 순위표</a>
     <a class="nav-tab" data-tab="trend">📊 트렌드</a>
+    <a class="nav-tab" data-tab="notice">📢 공지사항</a>
   </nav>
 
   <main class="main">
@@ -296,6 +297,9 @@ input:checked + .toggle-slider:before { transform: translateX(22px); }
       <div id="trend-content"></div>
     </section>
 
+    <section class="tab" id="tab-notice">
+      <div id="notice-content"></div>
+    </section>
   </main>
 </div>
 
@@ -367,13 +371,15 @@ function updateClock() {
 // =====================================================================
 async function loadAll() {
   try {
-    const [studentsRes, tradesRes, pricesRes] = await Promise.all([
+    const [studentsRes, tradesRes, pricesRes, noticesRes] = await Promise.all([
       sb.from('students').select('id,student_number,name,initial_cash,class_id,pin').limit(500),
       sb.from('trades').select('*').limit(10000),
       sb.from('live_prices').select('ticker,name,sector,price,change_amt,change_pct,updated_at').limit(50),
+      sb.from('announcements').select('*').order('created_at', { ascending: false }).limit(50),
     ]);
     CACHE.students = studentsRes.data || [];
     CACHE.trades   = tradesRes.data  || [];
+    CACHE.notices  = noticesRes.data || [];
     CACHE.livePrices = {};
     for (const row of (pricesRes.data || [])) {
       CACHE.livePrices[row.ticker] = {
@@ -392,6 +398,7 @@ function renderAll() {
   if (CURRENT_TAB==='trades')    renderTrades();
   if (CURRENT_TAB==='ranking')   renderRanking();
   if (CURRENT_TAB==='trend')     renderTrend();
+  if (CURRENT_TAB==='notice')    renderNotice();
 }
 
 // =====================================================================
@@ -987,6 +994,82 @@ function renderTrend() {
         </div>
       </div>
     </div>`;
+}
+
+// =====================================================================
+// 공지사항
+// =====================================================================
+async function renderNotice() {
+  const notices = CACHE.notices || [];
+  document.getElementById('notice-content').innerHTML = `
+    <div class="card">
+      <div class="card-title">📢 공지사항 등록</div>
+      <div class="form-group">
+        <label class="form-label">제목</label>
+        <input class="form-input" type="text" id="notice-title" placeholder="공지 제목">
+      </div>
+      <div class="form-group">
+        <label class="form-label">내용</label>
+        <textarea class="form-input" id="notice-content-text" rows="4" placeholder="학생들에게 전달할 내용을 입력하세요" style="resize:vertical;"></textarea>
+      </div>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-primary" onclick="postNotice()">📢 공지 등록</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">공지 목록 <span>${notices.length}건</span></div>
+      ${notices.length === 0 ? '<div class="empty">등록된 공지가 없습니다</div>' : `
+        <div class="table-wrap"><table>
+          <thead><tr>
+            <th class="center">상태</th>
+            <th>제목</th>
+            <th>내용</th>
+            <th class="center">등록시각</th>
+            <th class="center">관리</th>
+          </tr></thead>
+          <tbody>${notices.map(n => `<tr>
+            <td class="center">
+              <span class="badge ${n.is_active ? 'badge-on' : 'badge-off'}">${n.is_active ? '표시중' : '숨김'}</span>
+            </td>
+            <td><strong>${n.title}</strong></td>
+            <td class="text-sm text-muted">${n.content.length > 30 ? n.content.slice(0,30)+'...' : n.content}</td>
+            <td class="center text-sm">${new Date(n.created_at).toLocaleString('ko-KR')}</td>
+            <td class="center" style="display:flex; gap:4px; justify-content:center;">
+              <button class="btn btn-sm ${n.is_active?'btn-danger':'btn-success'}" onclick="toggleNotice('${n.id}',${!n.is_active})">${n.is_active?'숨기기':'표시'}</button>
+              <button class="btn btn-sm btn-danger" onclick="deleteNotice('${n.id}')">삭제</button>
+            </td>
+          </tr>`).join('')}</tbody>
+        </table></div>`}
+    </div>`;
+}
+
+async function postNotice() {
+  const title   = document.getElementById('notice-title').value.trim();
+  const content = document.getElementById('notice-content-text').value.trim();
+  if (!title || !content) return toast('제목과 내용을 입력해주세요', 'danger');
+
+  const { error } = await sb.from('announcements').insert({ title, content, is_active: true });
+  if (error) { toast('등록 실패: ' + error.message, 'danger'); return; }
+  document.getElementById('notice-title').value = '';
+  document.getElementById('notice-content-text').value = '';
+  await loadAll();
+  toast('공지 등록 완료', 'success');
+}
+
+async function toggleNotice(id, isActive) {
+  const { error } = await sb.from('announcements').update({ is_active: isActive }).eq('id', id);
+  if (error) { toast('수정 실패', 'danger'); return; }
+  await loadAll();
+  toast(isActive ? '공지 표시 중' : '공지 숨김', 'success');
+}
+
+async function deleteNotice(id) {
+  if (!confirm('공지를 삭제하시겠습니까?')) return;
+  const { error } = await sb.from('announcements').delete().eq('id', id);
+  if (error) { toast('삭제 실패', 'danger'); return; }
+  await loadAll();
+  toast('삭제 완료', 'success');
 }
 
 // =====================================================================
