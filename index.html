@@ -1976,7 +1976,6 @@ async function submitInquiry() {
   });
   if (error) { toast('제출 실패: ' + error.message, 'danger'); return; }
 
-  document.getElementById('inq-title').value   = '';
   document.getElementById('inq-content').value = '';
   await loadAllData();
   renderInquiry();

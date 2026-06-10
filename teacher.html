@@ -1137,7 +1137,6 @@ function renderInquiryMgmt() {
         <th class="center">상태</th>
         <th>학번</th>
         <th>이름</th>
-        <th>제목</th>
         <th>내용</th>
         <th class="center">등록일시</th>
         <th class="center">처리</th>
@@ -1150,8 +1149,7 @@ function renderInquiryMgmt() {
         </td>
         <td>${q.student_number || '-'}</td>
         <td><strong>${q.student_name || '-'}</strong></td>
-        <td><strong>${q.title}</strong></td>
-        <td class="text-sm text-muted" style="max-width:200px; white-space:pre-wrap;">${q.content}</td>
+        <td class="text-sm" style="max-width:280px; white-space:pre-wrap;">${q.content}</td>
         <td class="center text-sm">${new Date(q.created_at).toLocaleString('ko-KR')}</td>
         <td class="center">
           ${!q.is_confirmed
@@ -1184,14 +1182,13 @@ function filterInquiry(type) {
   el.innerHTML = `<div class="table-wrap"><table>
     <thead><tr>
       <th class="center">상태</th><th>학번</th><th>이름</th>
-      <th>제목</th><th>내용</th><th class="center">등록일시</th><th class="center">처리</th>
+      <th>내용</th><th class="center">등록일시</th><th class="center">처리</th>
     </tr></thead>
     <tbody>${filtered.map(q => `<tr style="${!q.is_confirmed?'background:#fffbeb;':''}">
       <td class="center"><span class="badge ${q.is_confirmed?'badge-on':'badge-warn'}">${q.is_confirmed?'✅ 확인됨':'⏳ 검토중'}</span></td>
       <td>${q.student_number||'-'}</td>
       <td><strong>${q.student_name||'-'}</strong></td>
-      <td><strong>${q.title}</strong></td>
-      <td class="text-sm text-muted" style="max-width:200px; white-space:pre-wrap;">${q.content}</td>
+      <td class="text-sm" style="max-width:280px; white-space:pre-wrap;">${q.content}</td>
       <td class="center text-sm">${new Date(q.created_at).toLocaleString('ko-KR')}</td>
       <td class="center">${!q.is_confirmed
         ? `<button class="btn btn-sm btn-success" onclick="confirmInquiry('${q.id}')">✅ 확인</button>`
