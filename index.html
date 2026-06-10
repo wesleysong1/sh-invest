@@ -525,15 +525,14 @@ async function loadAllData() {
     const me = CACHE.students.find(s => s.id === SESSION.studentId);
     CACHE.watchlist = me?.watchlist || [];
 
-    // 이전 가격 저장 (깜빡임 효과용)
-    CACHE.prevPrices = {};
+    // 이전 가격 저장 (깜빡임 효과용) - 먼저 새 객체 빌드 후 atomic swap
+    const newPrevPrices = {};
     for (const k in CACHE.livePrices) {
-      CACHE.prevPrices[k] = CACHE.livePrices[k]?.price;
+      newPrevPrices[k] = CACHE.livePrices[k]?.price;
     }
-    // 새 가격 저장
-    CACHE.livePrices = {};
+    const newLivePrices = {};
     for (const row of (pricesRes.data || [])) {
-      CACHE.livePrices[row.ticker] = {
+      newLivePrices[row.ticker] = {
         price: parseFloat(row.price),
         change_amt: parseFloat(row.change_amt || 0),
         change_pct: parseFloat(row.change_pct || 0),
@@ -543,6 +542,9 @@ async function loadAllData() {
         updated_at: row.updated_at,
       };
     }
+    // 한 번에 교체 (렌더링 중간에 빈 상태 없음)
+    CACHE.prevPrices = newPrevPrices;
+    CACHE.livePrices = newLivePrices;
   } catch (e) {
     console.error('데이터 로드 실패:', e);
     toast('데이터 로드 실패', 'danger');
@@ -1965,10 +1967,9 @@ async function loadPublicData() {
       sb.from('students').select('id,student_number,name,initial_cash,class_id,watchlist').limit(500),
       sb.from('trades').select('*').limit(10000),
     ]);
-    CACHE.prevPrices = {};
-    CACHE.livePrices = {};
+    const newPrices2 = {};
     for (const row of (pricesRes.data || [])) {
-      CACHE.livePrices[row.ticker] = {
+      newPrices2[row.ticker] = {
         price: parseFloat(row.price),
         change_amt: parseFloat(row.change_amt || 0),
         change_pct: parseFloat(row.change_pct || 0),
@@ -1978,6 +1979,8 @@ async function loadPublicData() {
         updated_at: row.updated_at,
       };
     }
+    // atomic swap - 빈 상태 없이 한 번에 교체
+    CACHE.livePrices = newPrices2;
     CACHE.students = studentsRes.data || [];
     CACHE.trades   = tradesRes.data  || [];
     // 비로그인 상태에서도 실시간 가격 구독
