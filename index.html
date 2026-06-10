@@ -659,7 +659,7 @@ function updateClock() {
   document.getElementById('hdr-time').textContent = fmt.time(now);
   const s = getSessionStatus();
   document.getElementById('hdr-session').innerHTML =
-    `<span class="session-badge ${s.cls}">${s.open ? '🟢' : '🔴'} ${s.label}</span>`;
+    `<span style="font-size:11px; color:var(--t3); margin-right:4px;">거래 시간: 평일 08:00~20:00</span><span class="session-badge ${s.cls}">${s.open ? '🟢' : '🔴'} ${s.label}</span>`;
 }
 
 // =====================================================================
