@@ -509,7 +509,7 @@ async function loadAllData() {
     const [studentsRes, tradesRes, pricesRes, ordersRes, inquiriesRes] = await Promise.all([
       sb.from('students').select('id,student_number,name,initial_cash,class_id,watchlist').limit(500),
       sb.from('trades').select('*').limit(10000),
-      sb.from('live_prices').select('ticker,name,sector,market,price,change_amt,change_pct,updated_at').limit(50),
+      sb.from('live_prices').select('ticker,name,sector,market,price,change_amt,change_pct,updated_at').limit(200),
       sb.from('pending_orders').select('*')
         .eq('student_id', SESSION.studentId).order('created_at', { ascending: false }).limit(200),
       sb.from('inquiries').select('*')
@@ -1963,7 +1963,7 @@ async function init() {
 async function loadPublicData() {
   try {
     const [pricesRes, studentsRes, tradesRes] = await Promise.all([
-      sb.from('live_prices').select('ticker,name,sector,market,price,change_amt,change_pct,updated_at').limit(50),
+      sb.from('live_prices').select('ticker,name,sector,market,price,change_amt,change_pct,updated_at').limit(200),
       sb.from('students').select('id,student_number,name,initial_cash,class_id,watchlist').limit(500),
       sb.from('trades').select('*').limit(10000),
     ]);

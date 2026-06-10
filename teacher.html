@@ -378,7 +378,7 @@ async function loadAll() {
     const [studentsRes, tradesRes, pricesRes, noticesRes, inquiriesRes] = await Promise.all([
       sb.from('students').select('id,student_number,name,initial_cash,class_id,pin').limit(500),
       sb.from('trades').select('*').limit(10000),
-      sb.from('live_prices').select('ticker,name,sector,price,change_amt,change_pct,updated_at').limit(50),
+      sb.from('live_prices').select('ticker,name,sector,price,change_amt,change_pct,updated_at').limit(200),
       sb.from('announcements').select('*').order('created_at', { ascending: false }).limit(50),
       sb.from('inquiries').select('*').order('created_at', { ascending: false }).limit(200),
     ]);
