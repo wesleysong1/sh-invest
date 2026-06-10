@@ -228,6 +228,7 @@ td.center, th.center { text-align: center; }
     <a class="nav-tab" data-tab="orders" data-auth="1">📋 예약 주문</a>
     <a class="nav-tab" data-tab="trend">📊 트렌드</a>
     <a class="nav-tab" data-tab="leaderboard">🏆 순위표</a>
+    <a class="nav-tab" data-tab="inquiry" data-auth="1">💬 문의함</a>
   </nav>
   <main class="main">
     <section class="tab active" id="tab-market">
@@ -264,6 +265,10 @@ td.center, th.center { text-align: center; }
 
     <section class="tab" id="tab-leaderboard">
       <div id="leaderboard-content"></div>
+    </section>
+
+    <section class="tab" id="tab-inquiry">
+      <div id="inquiry-content"></div>
     </section>
   </main>
 </div>
@@ -501,17 +506,20 @@ async function enterApp() {
 async function loadAllData() {
   if (!SESSION) return;
   try {
-    const [studentsRes, tradesRes, pricesRes, ordersRes] = await Promise.all([
+    const [studentsRes, tradesRes, pricesRes, ordersRes, inquiriesRes] = await Promise.all([
       sb.from('students').select('id,student_number,name,initial_cash,class_id,watchlist').limit(500),
       sb.from('trades').select('*').limit(10000),
       sb.from('live_prices').select('ticker,name,sector,market,price,change_amt,change_pct,updated_at').limit(50),
       sb.from('pending_orders').select('*')
         .eq('student_id', SESSION.studentId).order('created_at', { ascending: false }).limit(200),
+      sb.from('inquiries').select('*')
+        .eq('student_id', SESSION.studentId).order('created_at', { ascending: false }).limit(100),
     ]);
 
-    CACHE.students = studentsRes.data || [];
-    CACHE.trades   = tradesRes.data  || [];
-    CACHE.orders   = ordersRes.data  || [];
+    CACHE.students  = studentsRes.data || [];
+    CACHE.trades    = tradesRes.data   || [];
+    CACHE.orders    = ordersRes.data   || [];
+    CACHE.inquiries = inquiriesRes.data || [];
 
     // 관심종목 로드
     const me = CACHE.students.find(s => s.id === SESSION.studentId);
@@ -755,6 +763,7 @@ function renderAll() {
   else if (CURRENT_TAB === 'portfolio')   renderPortfolio();
   else if (CURRENT_TAB === 'trade')       renderTrade();
   else if (CURRENT_TAB === 'orders')      renderOrders();
+  else if (CURRENT_TAB === 'inquiry')     renderInquiry();
 }
 
 // 섹터 → 섹션 매핑
@@ -1808,6 +1817,78 @@ document.addEventListener('keydown', e => { if (e.key==='Escape') closeModal(); 
 // =====================================================================
 // 초기화
 // =====================================================================
+// =====================================================================
+// 문의함
+// =====================================================================
+function renderInquiry() {
+  const inquiries = CACHE.inquiries || [];
+  const el = document.getElementById('inquiry-content');
+
+  el.innerHTML = `
+    <div class="card">
+      <div class="card-title">💬 종목 제안 / 문의하기</div>
+      <div class="alert alert-info" style="margin-bottom:12px;">
+        희망 종목이나 건의사항을 선생님께 전달할 수 있어요.
+      </div>
+      <div class="form-group">
+        <label class="form-label">제목</label>
+        <input class="form-input" type="text" id="inq-title" placeholder="예: OOO 종목 추가 요청">
+      </div>
+      <div class="form-group">
+        <label class="form-label">내용</label>
+        <textarea class="form-input" id="inq-content" rows="4"
+          placeholder="종목 코드나 이름, 이유 등을 자유롭게 작성해주세요"
+          style="resize:vertical;"></textarea>
+      </div>
+      <button class="btn btn-primary" onclick="submitInquiry()">✉️ 제출하기</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">내 문의 내역 <span>${inquiries.length}건</span></div>
+      ${inquiries.length === 0
+        ? '<div class="empty">아직 문의 내역이 없습니다</div>'
+        : `<div class="table-wrap"><table>
+          <thead><tr>
+            <th class="center">상태</th>
+            <th>제목</th>
+            <th>내용</th>
+            <th class="center">등록일시</th>
+          </tr></thead>
+          <tbody>${inquiries.map(q => `<tr>
+            <td class="center">
+              <span class="badge ${q.is_confirmed ? 'badge-on' : 'badge-off'}">
+                ${q.is_confirmed ? '✅ 확인됨' : '⏳ 검토중'}
+              </span>
+            </td>
+            <td><strong>${q.title}</strong></td>
+            <td class="text-sm text-muted">${q.content.length > 30 ? q.content.slice(0,30)+'...' : q.content}</td>
+            <td class="center text-sm">${new Date(q.created_at).toLocaleString('ko-KR')}</td>
+          </tr>`).join('')}</tbody>
+        </table></div>`}
+    </div>`;
+}
+
+async function submitInquiry() {
+  const title   = document.getElementById('inq-title').value.trim();
+  const content = document.getElementById('inq-content').value.trim();
+  if (!title || !content) return toast('제목과 내용을 모두 입력해주세요', 'danger');
+
+  const { error } = await sb.from('inquiries').insert({
+    student_id:     SESSION.studentId,
+    student_number: SESSION.studentNumber,
+    student_name:   SESSION.studentName,
+    title, content,
+    category: '종목제안',
+  });
+  if (error) { toast('제출 실패: ' + error.message, 'danger'); return; }
+
+  document.getElementById('inq-title').value   = '';
+  document.getElementById('inq-content').value = '';
+  await loadAllData();
+  renderInquiry();
+  toast('문의가 제출됐습니다', 'success');
+}
+
 // =====================================================================
 // 공지사항 팝업
 // =====================================================================
