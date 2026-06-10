@@ -485,7 +485,7 @@ async function loadAllData() {
   if (!SESSION) return;
   try {
     const [studentsRes, tradesRes, pricesRes, ordersRes] = await Promise.all([
-      sb.from('students').select('id,student_number,name,initial_cash,class_id').limit(500),
+      sb.from('students').select('id,student_number,name,initial_cash,class_id,watchlist').limit(500),
       sb.from('trades').select('*').limit(10000),
       sb.from('live_prices').select('ticker,name,sector,market,price,change_amt,change_pct,updated_at').limit(50),
       sb.from('pending_orders').select('*')
@@ -495,6 +495,10 @@ async function loadAllData() {
     CACHE.students = studentsRes.data || [];
     CACHE.trades   = tradesRes.data  || [];
     CACHE.orders   = ordersRes.data  || [];
+
+    // 관심종목 로드
+    const me = CACHE.students.find(s => s.id === SESSION.studentId);
+    CACHE.watchlist = me?.watchlist || [];
 
     // 이전 가격 저장 (깜빡임 효과용)
     CACHE.prevPrices = {};
@@ -715,20 +719,30 @@ function renderAll() {
 
 // 섹터 → 섹션 매핑
 // =====================================================================
-// 관심종목 (localStorage)
+// 관심종목 (DB 저장 - 로그인 시, localStorage 폴백)
 // =====================================================================
 const WATCHLIST_KEY = 'rt_watchlist_v1';
 
 function getWatchlist() {
+  if (SESSION && CACHE.watchlist) return new Set(CACHE.watchlist);
   try { return new Set(JSON.parse(localStorage.getItem(WATCHLIST_KEY) || '[]')); }
   catch { return new Set(); }
 }
 
-function toggleWatchlist(ticker) {
+async function toggleWatchlist(ticker) {
   const wl = getWatchlist();
   if (wl.has(ticker)) wl.delete(ticker);
   else wl.add(ticker);
-  localStorage.setItem(WATCHLIST_KEY, JSON.stringify([...wl]));
+  const arr = [...wl];
+
+  if (SESSION) {
+    CACHE.watchlist = arr;
+    try {
+      await sb.from('students').update({ watchlist: arr }).eq('id', SESSION.studentId);
+    } catch(e) { console.warn('관심종목 저장 실패:', e); }
+  } else {
+    localStorage.setItem(WATCHLIST_KEY, JSON.stringify(arr));
+  }
   renderMarket();
 }
 
@@ -1775,7 +1789,7 @@ async function loadPublicData() {
   try {
     const [pricesRes, studentsRes, tradesRes] = await Promise.all([
       sb.from('live_prices').select('ticker,name,sector,market,price,change_amt,change_pct,updated_at').limit(50),
-      sb.from('students').select('id,student_number,name,initial_cash,class_id').limit(500),
+      sb.from('students').select('id,student_number,name,initial_cash,class_id,watchlist').limit(500),
       sb.from('trades').select('*').limit(10000),
     ]);
     CACHE.prevPrices = {};
