@@ -1913,13 +1913,9 @@ function renderInquiry() {
         희망 종목이나 건의사항을 선생님께 전달할 수 있어요.
       </div>
       <div class="form-group">
-        <label class="form-label">제목</label>
-        <input class="form-input" type="text" id="inq-title" placeholder="예: OOO 종목 추가 요청">
-      </div>
-      <div class="form-group">
         <label class="form-label">내용</label>
-        <textarea class="form-input" id="inq-content" rows="4"
-          placeholder="종목 코드나 이름, 이유 등을 자유롭게 작성해주세요"
+        <textarea class="form-input" id="inq-content" rows="5"
+          placeholder="제목과 내용을 자유롭게 작성해주세요&#10;예) OOO 종목 추가 요청합니다. 이유는..."
           style="resize:vertical;"></textarea>
       </div>
       <button class="btn btn-primary" onclick="submitInquiry()">✉️ 제출하기</button>
@@ -1964,9 +1960,12 @@ async function cancelInquiry(id) {
 }
 
 async function submitInquiry() {
-  const title   = document.getElementById('inq-title').value.trim();
   const content = document.getElementById('inq-content').value.trim();
-  if (!title || !content) return toast('제목과 내용을 모두 입력해주세요', 'danger');
+  if (!content) return toast('내용을 입력해주세요', 'danger');
+
+  // 첫 줄을 제목으로 사용
+  const lines = content.split('\n');
+  const title = lines[0].slice(0, 50) || '문의';
 
   const { error } = await sb.from('inquiries').insert({
     student_id:     SESSION.studentId,
