@@ -1216,27 +1216,40 @@ function renderOrders() {
       ? `현재가까지 <span class="${diff>0?'text-danger':'text-success'}">${diff>0?'+':''}${fmt.num(diff)}원 (${diff>0?'+':''}${diffPct}%)</span>`
       : `현재가까지 <span class="${diff<0?'text-danger':'text-success'}">${diff>=0?'+':''}${fmt.num(diff)}원 (${diff>=0?'+':''}${diffPct}%)</span>`;
 
+    const reservedAmt = o.action === 'buy'
+      ? (() => { const a = o.target_price * o.qty; return a + Math.round(a * FEE_RATE); })()
+      : null;
     return `<tr>
       <td class="center text-sm">${fmt.datetime(dt)}</td>
       <td><strong>${name}</strong></td>
       <td class="center"><span class="badge badge-${o.action==='buy'?'buy':'sell'}">${o.action==='buy'?'매수':'매도'}</span></td>
       <td class="num">${fmt.num(o.qty)}주</td>
       <td class="num font-bold">${fmt.num(o.target_price)}원</td>
+      <td class="num">${reservedAmt !== null ? `<span class="text-sm">${fmt.krw(reservedAmt)}</span><div class="text-muted" style="font-size:10px;">수수료 포함</div>` : '-'}</td>
       <td class="num">${fmt.num(currentPrice)}원</td>
       <td class="text-sm">${o.status==='pending' ? gap : ''}</td>
       ${showCancel ? `<td class="center"><button class="btn btn-sm btn-danger" onclick="cancelOrder('${o.id}')">취소</button></td>` : '<td></td>'}
     </tr>`;
   }
 
+  // 총 예약금 계산
+  const totalReserved = pending.reduce((sum, o) => {
+    if (o.action !== 'buy') return sum;
+    const amt = o.target_price * o.qty;
+    return sum + amt + Math.round(amt * FEE_RATE);
+  }, 0);
+
   const thead = `<thead><tr>
     <th class="center">등록시각</th><th>종목</th><th class="center">구분</th>
-    <th class="num">수량</th><th class="num">목표가</th><th class="num">현재가</th>
+    <th class="num">수량</th><th class="num">목표가</th><th class="num">예약금액</th><th class="num">현재가</th>
     <th>현재가 대비</th><th class="center">관리</th>
   </tr></thead>`;
 
   document.getElementById('orders-content').innerHTML = `
     <div class="card">
-      <div class="card-title">⏳ 미체결 주문 <span>${pending.length}건</span></div>
+      <div class="card-title">⏳ 미체결 주문 <span>${pending.length}건</span>
+        ${totalReserved > 0 ? `<span style="margin-left:auto; font-size:12px; font-weight:400; color:var(--t2);">총 예약금: <strong>${fmt.krw(totalReserved)}</strong> (수수료 포함)</span>` : ''}
+      </div>
       ${pending.length === 0
         ? '<div class="empty">미체결 예약 주문이 없습니다</div>'
         : `<div class="table-wrap"><table>${thead}<tbody>${pending.map(o=>orderRow(o,true)).join('')}</tbody></table></div>`}
@@ -1334,7 +1347,9 @@ function openTradeModal(ticker, action, mode='instant') {
     </div>
     <div style="font-size:13px; color:var(--t2); margin-bottom:12px;">
       <div>현재가: <strong>${fmt.num(price)}원</strong></div>
-      <div>현금 잔고: <strong>${fmt.krw(port.cash)}</strong></div>
+      <div>사용 가능 현금: <strong>${fmt.krw(port.cash)}</strong>
+        ${port.reservedCash > 0 ? `<span class="text-muted text-sm"> (예약 대기 ${fmt.krw(port.reservedCash)} 차감됨)</span>` : ''}
+      </div>
       ${action==='sell' ? `<div>보유 수량: <strong>${fmt.num(held)}주</strong></div>` : ''}
     </div>
 
