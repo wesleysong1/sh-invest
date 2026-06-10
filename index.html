@@ -1858,10 +1858,7 @@ function renderInquiry() {
           placeholder="종목 코드나 이름, 이유 등을 자유롭게 작성해주세요"
           style="resize:vertical;"></textarea>
       </div>
-      <div style="display:flex; gap:8px;">
-        <button class="btn btn-primary" onclick="submitInquiry()">✉️ 제출하기</button>
-        <button class="btn" onclick="clearInquiryForm()">취소</button>
-      </div>
+      <button class="btn btn-primary" onclick="submitInquiry()">✉️ 제출하기</button>
     </div>
 
     <div class="card">
@@ -1874,6 +1871,7 @@ function renderInquiry() {
             <th>제목</th>
             <th>내용</th>
             <th class="center">등록일시</th>
+            <th class="center">관리</th>
           </tr></thead>
           <tbody>${inquiries.map(q => `<tr>
             <td class="center">
@@ -1884,14 +1882,21 @@ function renderInquiry() {
             <td><strong>${q.title}</strong></td>
             <td class="text-sm text-muted">${q.content.length > 30 ? q.content.slice(0,30)+'...' : q.content}</td>
             <td class="center text-sm">${new Date(q.created_at).toLocaleString('ko-KR')}</td>
+            <td class="center">${!q.is_confirmed
+              ? `<button class="btn btn-sm btn-danger" onclick="cancelInquiry('${q.id}')">취소</button>`
+              : ''}</td>
           </tr>`).join('')}</tbody>
         </table></div>`}
     </div>`;
 }
 
-function clearInquiryForm() {
-  document.getElementById('inq-title').value = '';
-  document.getElementById('inq-content').value = '';
+async function cancelInquiry(id) {
+  if (!confirm('문의를 취소하시겠습니까?')) return;
+  const { error } = await sb.from('inquiries').delete().eq('id', id).eq('student_id', SESSION.studentId);
+  if (error) { toast('취소 실패: ' + error.message, 'danger'); return; }
+  await loadAllData();
+  renderInquiry();
+  toast('문의가 취소됐습니다', 'success');
 }
 
 async function submitInquiry() {
