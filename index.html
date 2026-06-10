@@ -1858,7 +1858,10 @@ function renderInquiry() {
           placeholder="종목 코드나 이름, 이유 등을 자유롭게 작성해주세요"
           style="resize:vertical;"></textarea>
       </div>
-      <button class="btn btn-primary" onclick="submitInquiry()">✉️ 제출하기</button>
+      <div style="display:flex; gap:8px;">
+        <button class="btn btn-primary" onclick="submitInquiry()">✉️ 제출하기</button>
+        <button class="btn" onclick="clearInquiryForm()">취소</button>
+      </div>
     </div>
 
     <div class="card">
@@ -1884,6 +1887,11 @@ function renderInquiry() {
           </tr>`).join('')}</tbody>
         </table></div>`}
     </div>`;
+}
+
+function clearInquiryForm() {
+  document.getElementById('inq-title').value = '';
+  document.getElementById('inq-content').value = '';
 }
 
 async function submitInquiry() {
