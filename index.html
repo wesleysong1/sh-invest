@@ -1754,7 +1754,7 @@ function renderLeaderboard() {
       <td class="center">${rankCell}</td>
       <td>${p.student.student_number}</td>
       <td><strong>${medal}<span style='cursor:pointer; text-decoration:underline; text-underline-offset:3px;' onclick="openStudentPortfolioModal('${p.student.id}','${p.student.name}')">${p.student.name}</span>${isMe?' (나)':''}</strong></td>
-      <td class="num">${fmt.krw(p.cash)}</td>
+      <td class="num">${fmt.krw(p.rawCash ?? p.cash)}</td>
       <td class="num">${fmt.krw(p.stockValue)}</td>
       <td class="num font-bold">${fmt.krw(p.totalValue)}</td>
       <td class="num font-bold ${p.returnPct>=0?'text-success':'text-danger'}">${fmt.pct(p.returnPct*100)}</td>
@@ -1812,7 +1812,7 @@ function renderLeaderboard() {
       <td class="center">${rankCell}</td>
       <td>${p.student.student_number}</td>
       <td><strong>${medal}<span style='cursor:pointer; text-decoration:underline; text-underline-offset:3px;' onclick="openStudentPortfolioModal('${p.student.id}','${p.student.name}')">${p.student.name}</span>${isMe?' (나)':''}</strong></td>
-      <td class="num">${fmt.krw(p.cash)}</td>
+      <td class="num">${fmt.krw(p.rawCash ?? p.cash)}</td>
       <td class="num">${fmt.krw(p.stockValue)}</td>
       <td class="num font-bold">${fmt.krw(p.totalValue)}</td>
       <td class="num font-bold ${p.returnPct>=0?'text-success':'text-danger'}">${fmt.pct(p.returnPct*100)}</td>
@@ -1838,7 +1838,7 @@ function renderLeaderboard() {
         <tbody>${inactivePorts.map(p => `<tr class="row-inactive">
           <td>${p.student.student_number}</td>
           <td>${p.student.name}${SESSION && p.student.id===SESSION.studentId?' (나)':''}</td>
-          <td class="num">${fmt.krw(p.cash)}</td>
+          <td class="num">${fmt.krw(p.rawCash ?? p.cash)}</td>
         </tr>`).join('')}</tbody>
       </table></div>
     </div>` : ''}
