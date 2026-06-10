@@ -1210,11 +1210,7 @@ function renderOrders() {
     const name = lp?.name || o.ticker;
     const currentPrice = lp?.price || 0;
     const dt = new Date(o.created_at);
-    const diff = currentPrice - o.target_price;
-    const diffPct = o.target_price > 0 ? (diff / o.target_price * 100).toFixed(2) : '0';
-    const gap = o.action === 'buy'
-      ? `현재가까지 <span class="${diff>0?'text-danger':'text-success'}">${diff>0?'+':''}${fmt.num(diff)}원 (${diff>0?'+':''}${diffPct}%)</span>`
-      : `현재가까지 <span class="${diff<0?'text-danger':'text-success'}">${diff>=0?'+':''}${fmt.num(diff)}원 (${diff>=0?'+':''}${diffPct}%)</span>`;
+
 
     const reservedAmt = o.action === 'buy'
       ? (() => { const a = o.target_price * o.qty; return a + Math.round(a * FEE_RATE); })()
@@ -1227,7 +1223,6 @@ function renderOrders() {
       <td class="num font-bold">${fmt.num(o.target_price)}원</td>
       <td class="num">${reservedAmt !== null ? `<span class="text-sm">${fmt.krw(reservedAmt)}</span><div class="text-muted" style="font-size:10px;">수수료 포함</div>` : '-'}</td>
       <td class="num">${fmt.num(currentPrice)}원</td>
-      <td class="text-sm">${o.status==='pending' ? gap : ''}</td>
       ${showCancel ? `<td class="center"><button class="btn btn-sm btn-danger" onclick="cancelOrder('${o.id}')">취소</button></td>` : '<td></td>'}
     </tr>`;
   }
@@ -1242,7 +1237,7 @@ function renderOrders() {
   const thead = `<thead><tr>
     <th class="center">등록시각</th><th>종목</th><th class="center">구분</th>
     <th class="num">수량</th><th class="num">목표가</th><th class="num">예약금액</th><th class="num">현재가</th>
-    <th>현재가 대비</th><th class="center">관리</th>
+    <th class="center">관리</th>
   </tr></thead>`;
 
   document.getElementById('orders-content').innerHTML = `
@@ -1304,7 +1299,7 @@ function renderTrade() {
       const ts = getSessionStatus(ticker);
       const noTrade = !ts.open;
       return `<tr>
-        <td><strong>${lp.name}</strong>${noTrade && NO_NXT_TICKERS.has(ticker) ? ' <span class="text-muted text-sm">정규장만</span>' : ''}</td>
+        <td><strong>${lp.name}</strong>${noTrade && NO_NXT_TICKERS.has(ticker) ? ' <span class="text-muted text-sm">거래시간: 09:00~15:30</span>' : ''}</td>
         <td class="num">${fmt.num(lp.price)}원</td>
         <td class="num ${pctCls}">${lp.change_pct > 0 ? '+' : ''}${Number(lp.change_pct).toFixed(2)}%</td>
         <td class="num">${held > 0 ? fmt.num(held)+'주' : '-'}</td>
