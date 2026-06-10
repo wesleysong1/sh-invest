@@ -1370,6 +1370,12 @@ function openTradeModal(ticker, action, mode='instant') {
       </label>
       <input class="form-input" type="number" id="t-qty" min="1" value="1"
         oninput="${mode==='instant'?`updateTradePreview('${ticker}','${action}')`:`updateLimitPreview('${ticker}','${action}')`}">
+      <div style="display:flex; gap:4px; margin-top:6px; flex-wrap:wrap;">
+        <button type="button" class="btn btn-sm" style="flex:1; font-size:11px;" onclick="addQty(1,'${ticker}','${action}','${mode}')">+1주</button>
+        <button type="button" class="btn btn-sm" style="flex:1; font-size:11px;" onclick="addQty(10,'${ticker}','${action}','${mode}')">+10주</button>
+        <button type="button" class="btn btn-sm" style="flex:1; font-size:11px;" onclick="addQty(100,'${ticker}','${action}','${mode}')">+100주</button>
+        <button type="button" class="btn btn-sm" style="flex:1; font-size:11px; color:var(--t3);" onclick="resetQty('${ticker}','${action}','${mode}')">초기화</button>
+      </div>
     </div>
 
     ${mode==='limit' ? `
@@ -1418,6 +1424,23 @@ function setAllQty(ticker) {
   if (held <= 0) return toast('보유 수량이 없습니다', 'danger');
   document.getElementById('t-qty').value = held;
   updateTradePreview(ticker, 'sell');
+}
+
+function addQty(delta, ticker, action, mode) {
+  const input = document.getElementById('t-qty');
+  if (!input) return;
+  const current = parseInt(input.value) || 0;
+  input.value = Math.max(1, current + delta);
+  if (mode === 'instant') updateTradePreview(ticker, action);
+  else updateLimitPreview(ticker, action);
+}
+
+function resetQty(ticker, action, mode) {
+  const input = document.getElementById('t-qty');
+  if (!input) return;
+  input.value = 1;
+  if (mode === 'instant') updateTradePreview(ticker, action);
+  else updateLimitPreview(ticker, action);
 }
 
 function updateTradePreview(ticker, action) {
