@@ -363,7 +363,7 @@ async function switchToStudent() {
       studentName: data.name,
     };
     localStorage.setItem('rt_invest_session_v1', JSON.stringify(session));
-    window.location.href = 'index.html';
+    window.open('index.html', '_blank');
   } catch(e) {
     toast('전환 실패: ' + e.message, 'danger');
   }
