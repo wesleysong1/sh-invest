@@ -631,6 +631,7 @@ function subscribeRealtime() {
         if (CURRENT_TAB === 'market') renderMarket();
         else if (CURRENT_TAB === 'trade') renderTrade();
         else if (CURRENT_TAB === 'portfolio') renderPortfolio();
+        else if (CURRENT_TAB === 'leaderboard') renderLeaderboard();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'trades',
           filter: `student_id=eq.${SESSION.studentId}` }, async () => {
