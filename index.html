@@ -224,6 +224,7 @@ td.center, th.center { text-align: center; }
       <div class="header-user" id="header-user-area">
         <span id="hdr-name"></span>
         <button class="btn btn-sm" id="btn-admin" onclick="window.location.href='teacher.html'" style="display:none;">📋 관리자</button>
+        <button class="btn btn-sm" id="btn-refresh" onclick="location.reload(true)" title="앱 새로고침" style="padding:6px 8px;">🔄</button>
         <button class="btn btn-sm btn-primary" id="btn-login" onclick="openLoginModal()" style="display:none;">로그인</button>
         <button class="btn btn-sm" id="btn-logout" onclick="doLogout()" style="display:none;">로그아웃</button>
       </div>
@@ -2191,7 +2192,20 @@ init();
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./service-worker.js')
-      .then(reg => console.log('SW 등록 완료:', reg.scope))
+      .then(reg => {
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              // 새 버전 감지 → 배너 표시
+              const banner = document.createElement('div');
+              banner.style.cssText = 'position:fixed; top:0; left:0; right:0; background:#2563eb; color:white; text-align:center; padding:10px 16px; z-index:9999; font-size:14px; font-weight:600; display:flex; align-items:center; justify-content:center; gap:12px;';
+              banner.innerHTML = '🔄 새 버전이 있습니다! <button onclick="location.reload(true)" style="background:white; color:#2563eb; border:none; padding:4px 12px; border-radius:6px; font-weight:700; cursor:pointer;">지금 업데이트</button>';
+              document.body.prepend(banner);
+            }
+          });
+        });
+      })
       .catch(err => console.warn('SW 등록 실패:', err));
   });
 }
