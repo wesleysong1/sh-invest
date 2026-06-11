@@ -1076,7 +1076,7 @@ async function renderNotice() {
             <td class="text-sm text-muted">${n.content.length > 30 ? n.content.slice(0,30)+'...' : n.content}</td>
             <td class="center text-sm">${new Date(n.created_at).toLocaleString('ko-KR')}</td>
             <td class="center" style="display:flex; gap:4px; justify-content:center;">
-              <button class="btn btn-sm" onclick="editNotice('${n.id}','${n.title.replace(/'/g,\'\\'\')}','${n.content.replace(/'/g,\'\\'\')}')">수정</button>
+              <button class="btn btn-sm" onclick="editNotice('${n.id}')">수정</button>
               <button class="btn btn-sm ${n.is_active?'btn-danger':'btn-success'}" onclick="toggleNotice('${n.id}',${!n.is_active})">${n.is_active?'숨기기':'표시'}</button>
               <button class="btn btn-sm btn-danger" onclick="deleteNotice('${n.id}')">삭제</button>
             </td>
@@ -1105,7 +1105,9 @@ async function toggleNotice(id, isActive) {
   toast(isActive ? '공지 표시 중' : '공지 숨김', 'success');
 }
 
-function editNotice(id, title, content) {
+function editNotice(id) {
+  const notice = (CACHE.notices || []).find(n => n.id === id);
+  if (!notice) return toast('공지를 찾을 수 없습니다', 'danger');
   showModal(`
     <div class="modal-head">
       <div class="modal-title">공지사항 수정</div>
@@ -1113,18 +1115,25 @@ function editNotice(id, title, content) {
     </div>
     <div class="form-group">
       <label class="form-label">제목</label>
-      <input class="form-input" type="text" id="edit-notice-title" value="${title}">
+      <input class="form-input" type="text" id="edit-notice-title">
     </div>
     <div class="form-group">
       <label class="form-label">내용</label>
-      <textarea class="form-input" id="edit-notice-content" rows="5" style="resize:vertical;">${content}</textarea>
+      <textarea class="form-input" id="edit-notice-content" rows="5" style="resize:vertical;"></textarea>
     </div>
     <div class="modal-actions">
       <button class="btn" onclick="closeModal()">취소</button>
       <button class="btn btn-primary" onclick="saveEditNotice('${id}')">저장</button>
     </div>
   `);
-  setTimeout(() => document.getElementById('edit-notice-title')?.focus(), 50);
+  // 모달 렌더 후 값 설정
+  setTimeout(() => {
+    const titleEl = document.getElementById('edit-notice-title');
+    const contentEl = document.getElementById('edit-notice-content');
+    if (titleEl) titleEl.value = notice.title;
+    if (contentEl) contentEl.value = notice.content;
+    titleEl?.focus();
+  }, 50);
 }
 
 async function saveEditNotice(id) {
