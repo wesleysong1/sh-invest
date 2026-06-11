@@ -1814,7 +1814,7 @@ function renderLeaderboard() {
     </div>`;
   }
 
-  const thead = `<thead><tr>
+  const thead = `<thead><tr style="white-space:nowrap; font-size:12px;">
     <th class="center">순위</th><th>학번</th><th>이름</th>
     <th class="num">현금</th><th class="num">주식</th>
     <th class="num">총자산</th><th class="num">수익률</th>
@@ -1827,18 +1827,17 @@ function renderLeaderboard() {
     const medalIdx = (active && rank && rank<=3) ? rank : 0;
     const rowCls = isMe ? 'row-self' : (medalIdx ? 'medal-'+medalIdx : '');
     const rankCls = isMe ? 'rank-self' : (medalIdx ? 'rank-'+medalIdx : '');
-    const medal = ['','🥇 ','🥈 ','🥉 '][medalIdx] || '';
     const rankCell = !active
       ? '<span class="rank-num rank-inactive">—</span>'
       : `<span class="rank-num ${rankCls}">${rank}위</span>`;
-    return `<tr class="${rowCls}">
-      <td class="center">${rankCell}</td>
-      <td>${p.student.student_number}</td>
-      <td><strong>${medal}<span style='cursor:pointer; text-decoration:underline; text-underline-offset:3px;' onclick="openStudentPortfolioModal('${p.student.id}','${p.student.name}')">${p.student.name}</span>${isMe?' (나)':''}</strong></td>
-      <td class="num">${fmt.krw(p.rawCash ?? p.cash)}</td>
-      <td class="num">${fmt.krw(p.stockValue)}</td>
-      <td class="num font-bold">${fmt.krw(p.totalValue)}</td>
-      <td class="num font-bold ${p.returnPct>=0?'text-success':'text-danger'}">${fmt.pct(p.returnPct*100)}</td>
+    return `<tr class="${rowCls}" style="font-size:13px; white-space:nowrap;">
+      <td class="center" style="padding:8px 6px;">${rankCell}</td>
+      <td style="padding:8px 6px;">${p.student.student_number}</td>
+      <td style="padding:8px 6px;"><strong><span style='cursor:pointer; text-decoration:underline; text-underline-offset:2px;' onclick="openStudentPortfolioModal('${p.student.id}','${p.student.name}')">${p.student.name}</span></strong></td>
+      <td class="num" style="padding:8px 6px;">${fmt.krw(p.rawCash ?? p.cash)}</td>
+      <td class="num" style="padding:8px 6px;">${fmt.krw(p.stockValue)}</td>
+      <td class="num font-bold" style="padding:8px 6px;">${fmt.krw(p.totalValue)}</td>
+      <td class="num font-bold ${p.returnPct>=0?'text-success':'text-danger'}" style="padding:8px 6px;">${fmt.pct(p.returnPct*100)}</td>
     </tr>`;
   }).join('');
 
@@ -1857,11 +1856,11 @@ function renderLeaderboard() {
   const MIN_TRADES  = 5;
   const MIN_TICKERS = 5;
 
-  const thead2 = `<thead><tr>
+  const thead2 = `<thead><tr style="white-space:nowrap; font-size:12px;">
     <th class="center">순위</th><th>학번</th><th>이름</th>
     <th class="num">현금</th><th class="num">주식</th>
     <th class="num">총자산</th><th class="num">수익률</th>
-    <th class="center">거래횟수</th><th class="center">종목수</th>
+    <th class="center">거래</th><th class="center">종목수</th>
   </tr></thead>`;
 
   const renderRows2 = (ps, rs) => ps.map((p, i) => {
@@ -1889,16 +1888,16 @@ function renderLeaderboard() {
     const tradeCell  = `<span style="font-weight:700;">${tradeCount}회</span>`;
     const tickerCell = `<span style="font-weight:700; color:${warnTicker ? '#d97706' : 'var(--t1)'}">${tickerCount}종목 ${warnTicker ? '⚠️' : ''}</span>`;
 
-    return `<tr class="${rowCls}" style="${rowStyle}">
-      <td class="center">${rankCell}</td>
-      <td>${p.student.student_number}</td>
-      <td><strong>${medal}<span style='cursor:pointer; text-decoration:underline; text-underline-offset:3px;' onclick="openStudentPortfolioModal('${p.student.id}','${p.student.name}')">${p.student.name}</span>${isMe?' (나)':''}</strong></td>
-      <td class="num">${fmt.krw(p.rawCash ?? p.cash)}</td>
-      <td class="num">${fmt.krw(p.stockValue)}</td>
-      <td class="num font-bold">${fmt.krw(p.totalValue)}</td>
-      <td class="num font-bold ${p.returnPct>=0?'text-success':'text-danger'}">${fmt.pct(p.returnPct*100)}</td>
-      <td class="center">${tradeCell}</td>
-      <td class="center">${tickerCell}</td>
+    return `<tr class="${rowCls}" style="${rowStyle} font-size:13px; white-space:nowrap;">
+      <td class="center" style="padding:8px 6px;">${rankCell}</td>
+      <td style="padding:8px 6px;">${p.student.student_number}</td>
+      <td style="padding:8px 6px;"><strong><span style='cursor:pointer; text-decoration:underline; text-underline-offset:2px;' onclick="openStudentPortfolioModal('${p.student.id}','${p.student.name}')">${p.student.name}</span></strong></td>
+      <td class="num" style="padding:8px 6px;">${fmt.krw(p.rawCash ?? p.cash)}</td>
+      <td class="num" style="padding:8px 6px;">${fmt.krw(p.stockValue)}</td>
+      <td class="num font-bold" style="padding:8px 6px;">${fmt.krw(p.totalValue)}</td>
+      <td class="num font-bold ${p.returnPct>=0?'text-success':'text-danger'}" style="padding:8px 6px;">${fmt.pct(p.returnPct*100)}</td>
+      <td class="center" style="padding:8px 6px;">${tradeCell}</td>
+      <td class="center" style="padding:8px 6px;">${tickerCell}</td>
     </tr>`;
   }).join('');
 
@@ -1918,7 +1917,7 @@ function renderLeaderboard() {
         <thead><tr><th>학번</th><th>이름</th><th class="num">현금 잔고</th></tr></thead>
         <tbody>${inactivePorts.map(p => `<tr class="row-inactive">
           <td>${p.student.student_number}</td>
-          <td>${p.student.name}${SESSION && p.student.id===SESSION.studentId?' (나)':''}</td>
+          <td>${p.student.name}</td>
           <td class="num">${fmt.krw(p.rawCash ?? p.cash)}</td>
         </tr>`).join('')}</tbody>
       </table></div>
