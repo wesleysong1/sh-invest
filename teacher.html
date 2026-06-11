@@ -1338,12 +1338,35 @@ document.addEventListener('keydown', e => { if(e.key==='Escape') closeModal(); }
 async function init() {
   sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   if (localStorage.getItem(TEACHER_SESSION_KEY) !== '1') {
-    // 세션 없으면 학생 로그인 페이지로
     location.href = 'index.html';
     return;
   }
   await loadAll();
   startClock();
+  subscribePrices();
+}
+
+function subscribePrices() {
+  try {
+    sb.channel('rt-teacher-prices')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'live_prices' }, (payload) => {
+        const row = payload.new;
+        if (row?.ticker) {
+          CACHE.livePrices[row.ticker] = {
+            price: parseFloat(row.price),
+            change_amt: parseFloat(row.change_amt || 0),
+            change_pct: parseFloat(row.change_pct || 0),
+            name: row.name,
+            sector: row.sector || CACHE.livePrices[row.ticker]?.sector || '',
+            updated_at: row.updated_at,
+          };
+        }
+        if (CURRENT_TAB === 'ranking')       renderRanking();
+        else if (CURRENT_TAB === 'settings') renderSettings();
+        else if (CURRENT_TAB === 'trend')    renderTrend();
+      })
+      .subscribe();
+  } catch(e) { console.warn('교사 구독 실패:', e); }
 }
 init();
 </script>

@@ -2178,6 +2178,8 @@ function subscribePublicPrices() {
           setTimeout(() => { CACHE.justRefreshed = false; }, 3000);
         }
         if (CURRENT_TAB === 'market') renderMarket();
+        else if (CURRENT_TAB === 'portfolio') renderPortfolio();
+        else if (CURRENT_TAB === 'leaderboard') renderLeaderboard();
       })
       .subscribe();
   } catch(e) { console.warn('공개 구독 실패:', e); }
