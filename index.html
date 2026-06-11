@@ -316,6 +316,23 @@ const TRADE_END   = { h: 20, m: 0 };  // 20:00 (NXT 포함)
 // 수수료율
 const FEE_RATE = 0.00015;  // 매수/매도 각각 0.015%
 
+// KRX 호가 단위
+function getTickSize(price) {
+  if (price < 1000)    return 1;
+  if (price < 5000)    return 5;
+  if (price < 10000)   return 10;
+  if (price < 50000)   return 50;
+  if (price < 100000)  return 100;
+  if (price < 500000)  return 500;
+  return 1000;
+}
+
+// 호가 단위로 반올림
+function roundToTick(price) {
+  const tick = getTickSize(price);
+  return Math.round(price / tick) * tick;
+}
+
 // NXT 미지원 종목 (08:00~09:00, 15:30~20:00 거래 불가)
 const NO_NXT_TICKERS = new Set([
   '069500','252670','233740','251340','0193W0','0193L0','0193T0','0197X0', // ETF
@@ -991,14 +1008,14 @@ function renderPortfolio() {
         const borderBot = 'border-bottom:none;';
         const borderSep = 'border-bottom:2px solid var(--br2);';
         const vline = 'border-right:1px solid var(--br);';
-        return `<tr style="${borderBot}">
-          <td style="${vline}"><strong>${i.name}</strong></td>
+        return `<tr style="${borderBot}; cursor:pointer;" onclick="openChartModal('${i.ticker}')" title="클릭하여 차트 및 거래">
+          <td style="${vline}"><strong>${i.name}</strong> <span style="font-size:10px; color:var(--t3);">📈</span></td>
           <td class="num" style="${vline}"><strong>${fmt.num(i.currentPrice)}원</strong></td>
           <td class="num" style="${vline}"><strong>${fmt.krw(i.value)}</strong></td>
           <td class="num" style="${vline}"><strong>${fmt.num(buyFee)}원</strong></td>
           <td class="num font-bold ${gainCls}">${gainStr}</td>
         </tr>
-        <tr style="${borderSep}">
+        <tr style="${borderSep}; cursor:pointer;" onclick="openChartModal('${i.ticker}')">
           <td class="text-sm" style="${vline}"><strong>${fmt.num(i.qty)}주</strong></td>
           <td class="num text-sm text-muted" style="${vline}"><strong>${fmt.num(i.avgCost)}원</strong></td>
           <td class="num text-sm text-muted" style="${vline}"><strong>${fmt.krw(i.totalPureAmt)}</strong></td>
@@ -1182,6 +1199,7 @@ function updateLimitPreview(ticker, action) {
   else if (!targetPrice || targetPrice <= 0) err = '목표 가격을 입력해주세요';
   else if (action === 'buy' && targetPrice > price) err = `매수 희망가는 현재가(${fmt.num(price)}원) 이하여야 합니다`;
   else if (action === 'sell' && targetPrice < price) err = `매도 희망가는 현재가(${fmt.num(price)}원) 이상이어야 합니다`;
+  else if (targetPrice % getTickSize(targetPrice) !== 0) err = `호가 단위(${fmt.num(getTickSize(targetPrice))}원)에 맞는 가격을 입력해주세요`;
   else if (action === 'buy' && (amt + fee) > port.cash) err = `현금 부족 (필요: ${fmt.krw(amt+fee)}, 보유: ${fmt.krw(port.cash)})`;
   else if (action === 'sell') {
     const held = port.items.find(i => i.ticker === ticker)?.qty || 0;
@@ -1194,6 +1212,27 @@ function updateLimitPreview(ticker, action) {
     <div>예상 수수료 <strong style="color:var(--warn);">${fmt.krw(fee)}</strong></div>
     ${err ? `<div style="margin-top:8px; color:var(--no); font-weight:600;">⚠ ${err}</div>` : ''}
   `;
+}
+
+// 호가 단위 조절
+function adjustTargetPrice(dir, ticker, action) {
+  const input = document.getElementById('t-target-price');
+  if (!input) return;
+  const current = parseInt(input.value) || CACHE.livePrices[ticker]?.price || 0;
+  const tick = getTickSize(current);
+  const newPrice = Math.max(tick, current + dir * tick);
+  input.value = newPrice;
+  input.step = getTickSize(newPrice);
+  updateLimitPreview(ticker, action);
+}
+
+function snapToTick(ticker, action) {
+  const input = document.getElementById('t-target-price');
+  if (!input) return;
+  const val = parseInt(input.value);
+  if (!val) return;
+  input.step = getTickSize(val);
+  updateLimitPreview(ticker, action);
 }
 
 // --- 지정가 주문 등록 ---
@@ -1211,6 +1250,8 @@ async function doLimitOrder(ticker, action) {
   if (!s.open) return toast(`거래 시간이 아닙니다 (${s.label})`, 'danger');
   if (action === 'buy' && targetPrice > price) return toast(`매수 희망가는 현재가(${fmt.num(price)}원) 이하여야 합니다`, 'danger');
   if (action === 'sell' && targetPrice < price) return toast(`매도 희망가는 현재가(${fmt.num(price)}원) 이상이어야 합니다`, 'danger');
+  const tick = getTickSize(targetPrice);
+  if (targetPrice % tick !== 0) return toast(`호가 단위(${fmt.num(tick)}원)에 맞는 가격을 입력해주세요`, 'danger');
 
   ORDER_LOCK = true;
   try {
@@ -1406,9 +1447,16 @@ function openTradeModal(ticker, action, mode='instant') {
 
     ${mode==='limit' ? `
     <div class="form-group">
-      <label class="form-label">${action==='buy'?'매수 희망가 (현재가 이하)':'매도 희망가 (현재가 이상)'}</label>
-      <input class="form-input" type="number" id="t-target-price" min="1" value="${price}"
-        oninput="updateLimitPreview('${ticker}','${action}')">
+      <label class="form-label" style="display:flex; justify-content:space-between;">
+        <span>${action==='buy'?'매수 희망가 (현재가 이하)':'매도 희망가 (현재가 이상)'}</span>
+        <span class="text-muted text-sm">호가 단위: ${fmt.num(getTickSize(price))}원</span>
+      </label>
+      <div style="display:flex; gap:4px; align-items:center;">
+        <button type="button" class="btn btn-sm" onclick="adjustTargetPrice(-1,'${ticker}','${action}')">▼</button>
+        <input class="form-input" type="number" id="t-target-price" min="1" value="${roundToTick(price)}"
+          step="${getTickSize(price)}" oninput="snapToTick('${ticker}','${action}')" style="flex:1; text-align:right;">
+        <button type="button" class="btn btn-sm" onclick="adjustTargetPrice(1,'${ticker}','${action}')">▲</button>
+      </div>
     </div>
     <div class="alert alert-info" style="font-size:12px; margin-bottom:10px;">
       ${action==='buy'
