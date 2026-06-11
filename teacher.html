@@ -129,9 +129,7 @@ input:checked + .toggle-slider:before { transform: translateX(22px); }
 .rank-3 { background: linear-gradient(135deg, #d97706, #92400e); color: white; }
 .rank-other { background: var(--bg); color: var(--t2); border: 1px solid var(--br); }
 .row-warn { background: repeating-linear-gradient(135deg, #fffbeb, #fffbeb 8px, #fef3c7 8px, #fef3c7 16px) !important; }
-.medal-1 td { background: linear-gradient(90deg, #fef3c7, #fffbeb 60%, #fff) !important; }
-.medal-2 td { background: linear-gradient(90deg, #f3f4f6, #f9fafb 60%, #fff) !important; }
-.medal-3 td { background: linear-gradient(90deg, #fed7aa, #fff7ed 60%, #fff) !important; }
+
 
 /* CSV 업로드 */
 .upload-area { border: 2px dashed var(--br2); border-radius: var(--r2); padding: 32px; text-align: center; cursor: pointer; transition: all 0.2s; color: var(--t3); }
@@ -881,15 +879,28 @@ function getPortfolio(studentId) {
       }
     });
   let stockValue = 0;
+  const items = [];
   Object.entries(holdings).forEach(([ticker, h]) => {
     if (h.qty <= 0) return;
-    const price = CACHE.livePrices[ticker]?.price || 0;
-    stockValue += h.qty * price;
+    const lp = CACHE.livePrices[ticker];
+    const price = lp?.price || 0;
+    const value = h.qty * price;
+    const avgCost = h.totalCost / h.qty;
+    const gain = value - h.totalCost;
+    stockValue += value;
+    items.push({
+      ticker, name: lp?.name || ticker,
+      qty: h.qty, currentPrice: price,
+      avgCost, totalPureAmt: Math.round(avgCost * h.qty),
+      value, gain,
+      returnPct: h.totalCost > 0 ? gain / h.totalCost : 0,
+    });
   });
+  items.sort((a,b) => b.value - a.value);
   const totalValue = cash + stockValue;
   const initialCash = Number(student.initial_cash);
   return {
-    student, cash, stockValue, totalValue, initialCash,
+    student, cash, rawCash: cash, stockValue, totalValue, initialCash, items,
     gain: totalValue - initialCash,
     returnPct: initialCash > 0 ? (totalValue - initialCash) / initialCash : 0,
   };
@@ -999,7 +1010,6 @@ function renderRanking() {
       <td class="num" style="padding:8px 6px;">${fmt.krw(p.stockValue)}</td>
       <td class="num font-bold" style="padding:8px 6px;">${fmt.krw(p.totalValue)}</td>
       <td class="num font-bold ${p.returnPct>=0?'text-success':'text-danger'}" style="padding:8px 6px;">${fmt.pct(p.returnPct*100)}</td>
-      <td class="center" style="padding:8px 6px;">${tradeCount}회</td>
       <td class="center ${tickerCount<5?'text-danger font-bold':''}" style="padding:8px 6px;">${tickerCount}종목 ${tickerCount<5?'⚠️':''}</td>
     </tr>`;
   }).join('');
@@ -1015,7 +1025,7 @@ function renderRanking() {
     <th class="center">순위</th><th>학번</th><th>이름</th>
     <th class="num">현금</th><th class="num">주식</th>
     <th class="num">총자산</th><th class="num">수익률</th>
-    <th class="center">거래</th><th class="center">종목수</th>
+    <th class="center">종목수</th>
   </tr></thead>`;
 
   document.getElementById('ranking-content').innerHTML = `

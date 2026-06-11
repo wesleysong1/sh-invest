@@ -175,9 +175,7 @@ td.center, th.center { text-align: center; }
 .rank-2 { background: linear-gradient(135deg, #e5e7eb 0%, #9ca3af 100%); color: white; }
 .rank-3 { background: linear-gradient(135deg, #d97706 0%, #92400e 100%); color: white; }
 .rank-self { background: var(--p) !important; color: white; }
-.medal-1 { background: linear-gradient(90deg, #fef3c7 0%, #fffbeb 60%, #fff 100%) !important; }
-.medal-2 { background: linear-gradient(90deg, #f3f4f6 0%, #f9fafb 60%, #fff 100%) !important; }
-.medal-3 { background: linear-gradient(90deg, #fed7aa 0%, #fff7ed 60%, #fff 100%) !important; }
+
 .row-self { background: var(--p-soft) !important; }
 .rank-inactive { background: #e5e7eb; color: var(--t2); box-shadow: none; min-width: 28px; }
 /* 실시간 세션 상태 표시 */
@@ -1861,7 +1859,7 @@ function renderLeaderboard() {
     <th class="center">순위</th><th>학번</th><th>이름</th>
     <th class="num">현금</th><th class="num">주식</th>
     <th class="num">총자산</th><th class="num">수익률</th>
-    <th class="center">거래</th><th class="center">종목수</th>
+    <th class="center">종목수</th>
   </tr></thead>`;
 
   const renderRows2 = (ps, rs) => ps.map((p, i) => {
@@ -1886,7 +1884,6 @@ function renderLeaderboard() {
       ? '<span class="rank-num rank-inactive">—</span>'
       : `<span class="rank-num ${rankCls}">${rank}위</span>`;
 
-    const tradeCell  = `<span style="font-weight:700;">${tradeCount}회</span>`;
     const tickerCell = `<span style="font-weight:700; color:${warnTicker ? '#d97706' : 'var(--t1)'}">${tickerCount}종목 ${warnTicker ? '⚠️' : ''}</span>`;
 
     return `<tr class="${rowCls}" style="${rowStyle} font-size:13px; white-space:nowrap;">
@@ -1897,7 +1894,6 @@ function renderLeaderboard() {
       <td class="num" style="padding:8px 6px;">${fmt.krw(p.stockValue)}</td>
       <td class="num font-bold" style="padding:8px 6px;">${fmt.krw(p.totalValue)}</td>
       <td class="num font-bold ${p.returnPct>=0?'text-success':'text-danger'}" style="padding:8px 6px;">${fmt.pct(p.returnPct*100)}</td>
-      <td class="center" style="padding:8px 6px;">${tradeCell}</td>
       <td class="center" style="padding:8px 6px;">${tickerCell}</td>
     </tr>`;
   }).join('');
