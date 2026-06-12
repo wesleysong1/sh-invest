@@ -57,12 +57,7 @@ button { font-family: inherit; }
 .header-stats { display: flex; gap: 14px; font-size: 13px; color: var(--t2); }
 .header-stats strong { color: var(--t1); margin-left: 4px; }
 .header-user { display: flex; gap: 8px; align-items: center; font-size: 13px; }
-.price-flash { animation: flash 0.6s ease; }
-@keyframes flash { 0%,100%{background:transparent} 50%{background:#fef08a} }
-@keyframes cardFlash { 0%{box-shadow:0 0 0 2px transparent;} 30%{box-shadow:0 0 0 2px #dc2626;} 70%{box-shadow:0 0 0 2px #dc2626;} 100%{box-shadow:0 0 0 2px transparent;} }
-@keyframes cardFlashDown { 0%{box-shadow:0 0 0 2px transparent;} 30%{box-shadow:0 0 0 2px #3b82f6;} 70%{box-shadow:0 0 0 2px #3b82f6;} 100%{box-shadow:0 0 0 2px transparent;} }
-.card-flash-up   { animation: cardFlash 1.2s ease; }
-.card-flash-down { animation: cardFlashDown 1.2s ease; }
+
 .price-up { color: var(--ok) !important; }
 .price-down { color: var(--no) !important; }
 .nav-tabs {
@@ -77,6 +72,8 @@ button { font-family: inherit; }
 .nav-tab.active { color: var(--p); border-bottom-color: var(--p); font-weight: 600; }
 .main { padding: 20px; max-width: 1200px; margin: 0 auto; }
 .tab { display: none; }
+.blink-dot { width:8px; height:8px; border-radius:50%; background:#16a34a; display:inline-block; animation:blink 1.5s ease-in-out infinite; flex-shrink:0; }
+@keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.2;} }
 .tab.active { display: block; }
 .card { background: var(--sf); border: 1px solid var(--br); border-radius: var(--r2); padding: 18px 20px; margin-bottom: 14px; }
 .card-title { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: var(--t2); }
@@ -242,7 +239,7 @@ td.center, th.center { text-align: center; }
   <main class="main">
     <section class="tab active" id="tab-market">
       <div class="card">
-        <div class="card-title">국내 주식 시세</div>
+        <div class="card-title">국내 주식 시세 <span id="market-updated" style="font-size:12px; font-weight:400; color:var(--t3); display:inline-flex; align-items:center; gap:5px;"></span></div>
         <div id="market-kospi"></div>
       </div>
     </section>
@@ -619,7 +616,6 @@ function subscribeRealtime() {
         // 개별 종목 가격 업데이트
         const row = payload.new;
         if (row && row.ticker) {
-          CACHE.prevPrices[row.ticker] = CACHE.livePrices[row.ticker]?.price;
           CACHE.livePrices[row.ticker] = {
             price: parseFloat(row.price),
             change_amt: parseFloat(row.change_amt || 0),
@@ -629,6 +625,10 @@ function subscribeRealtime() {
             market: row.market || CACHE.livePrices[row.ticker]?.market || 'KOSPI',
             updated_at: row.updated_at,
           };
+          CACHE.lastUpdated = new Date(row.updated_at);
+          CACHE.justRefreshed = true;
+          setTimeout(() => { CACHE.justRefreshed = false; }, 3000);
+          updateMarketStatus();
         }
         if (CURRENT_TAB === 'market') updateSingleCard(row?.ticker);
         else if (CURRENT_TAB === 'trade') renderTrade();
@@ -663,18 +663,6 @@ function subscribeRealtime() {
   }
 }
 
-function flashPriceCell(ticker) {
-  const el = document.getElementById(`price-${ticker}`);
-  if (!el) return;
-  const curr = CACHE.livePrices[ticker]?.price;
-  const prev = CACHE.prevPrices[ticker];
-  if (curr === undefined || prev === undefined || curr === prev) return;
-  const flashCls = curr > prev ? 'card-flash-up' : 'card-flash-down';
-  el.classList.remove('card-flash-up', 'card-flash-down');
-  void el.offsetWidth;
-  el.classList.add(flashCls);
-  setTimeout(() => el.classList.remove('card-flash-up', 'card-flash-down'), 1300);
-}
 
 function updateSingleCard(ticker) {
   const el = document.getElementById(`price-${ticker}`);
@@ -695,8 +683,29 @@ function updateSingleCard(ticker) {
   if (priceEl) priceEl.textContent = fmt.num(lp.price) + '원';
   if (changeEl) { changeEl.textContent = arrow + ' ' + fmt.num(Math.abs(lp.change_amt)) + '원'; changeEl.className = 'card-change ' + cls; }
   if (pctEl) { pctEl.textContent = pctStr; pctEl.className = 'card-pct ' + cls; }
-  // 테두리 번쩍임
-  flashPriceCell(ticker);
+}
+
+// =====================================================================
+// 갱신 상태 표시
+// =====================================================================
+function updateMarketStatus() {
+  const el = document.getElementById('market-updated');
+  if (!el) return;
+  if (!CACHE.lastUpdated) { el.innerHTML = ''; return; }
+
+  if (CACHE.justRefreshed) {
+    el.innerHTML = '<span class="blink-dot"></span> 방금 갱신됨';
+    return;
+  }
+
+  const elapsed = Math.floor((Date.now() - CACHE.lastUpdated.getTime()) / 1000);
+  const remaining = Math.max(0, 30 - elapsed);
+
+  if (remaining <= 0) {
+    el.innerHTML = '<span class="blink-dot"></span> 갱신 중...';
+  } else {
+    el.innerHTML = `<span class="blink-dot"></span> ${remaining}초 후 갱신`;
+  }
 }
 
 // =====================================================================
@@ -705,7 +714,7 @@ function updateSingleCard(ticker) {
 function startClock() {
   if (clockTimer) clearInterval(clockTimer);
   updateClock();
-  clockTimer = setInterval(() => { updateClock(); }, 1000);
+  clockTimer = setInterval(() => { updateClock(); updateMarketStatus(); }, 1000);
 }
 function updateClock() {
   const now = nowKST();
@@ -2161,7 +2170,6 @@ function subscribePublicPrices() {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'live_prices' }, (payload) => {
         const row = payload.new;
         if (row?.ticker) {
-          CACHE.prevPrices[row.ticker] = CACHE.livePrices[row.ticker]?.price;
           CACHE.livePrices[row.ticker] = {
             price: parseFloat(row.price),
             change_amt: parseFloat(row.change_amt || 0),
