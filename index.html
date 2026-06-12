@@ -399,17 +399,18 @@ function getSessionStatus(ticker) {
   if (dow === 0 || dow === 6) return { open: false, label: '주말 휴장', cls: 'session-closed' };
   const h = now.getHours(), m = now.getMinutes();
   const totalMin = h * 60 + m;
-  const startMin = TRADE_START.h * 60 + TRADE_START.m;
-  const endMin   = TRADE_END.h   * 60 + TRADE_END.m;
-  if (totalMin < startMin) return { open: false, label: `거래 전 (${TRADE_START.h}:${String(TRADE_START.m).padStart(2,'0')} 시작)`, cls: 'session-pre' };
-  if (totalMin >= endMin)  return { open: false, label: `거래 마감 (${TRADE_END.h}:${String(TRADE_END.m).padStart(2,'0')} 종료)`, cls: 'session-closed' };
+  // NXT 지원 종목: 08:01~20:00 / NXT 미지원: 09:01~15:30
+  const isNoNxt = ticker && NO_NXT_TICKERS.has(ticker);
+  const tradeStartMin = isNoNxt ? 9 * 60 + 1  : TRADE_START.h * 60 + TRADE_START.m + 1;
+  const tradeEndMin   = isNoNxt ? 15 * 60 + 30 : TRADE_END.h   * 60 + TRADE_END.m;
 
-  // NXT 미지원 종목: 정규장(09:00~15:30)만 허용
-  if (ticker && NO_NXT_TICKERS.has(ticker)) {
-    const regularStart = 9 * 60;
-    const regularEnd   = 15 * 60 + 30;
-    if (totalMin < regularStart) return { open: false, label: 'NXT 미지원 (09:00 시작)', cls: 'session-pre' };
-    if (totalMin >= regularEnd)  return { open: false, label: 'NXT 미지원 (15:30 마감)', cls: 'session-closed' };
+  if (totalMin < tradeStartMin) {
+    const sh = Math.floor(tradeStartMin / 60), sm = tradeStartMin % 60;
+    return { open: false, label: `거래 전 (${sh}:${String(sm).padStart(2,'0')} 시작)`, cls: 'session-pre' };
+  }
+  if (totalMin >= tradeEndMin) {
+    const eh = Math.floor(tradeEndMin / 60), em = tradeEndMin % 60;
+    return { open: false, label: isNoNxt ? 'NXT 미지원 (15:30 마감)' : `거래 마감 (${eh}:${String(em).padStart(2,'0')} 종료)`, cls: 'session-closed' };
   }
 
   return { open: true, label: '거래 중', cls: 'session-open' };
