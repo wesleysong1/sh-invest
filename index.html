@@ -629,9 +629,8 @@ function subscribeRealtime() {
             market: row.market || CACHE.livePrices[row.ticker]?.market || 'KOSPI',
             updated_at: row.updated_at,
           };
-          flashPriceCell(row.ticker);
         }
-        if (CURRENT_TAB === 'market') renderMarket();
+        if (CURRENT_TAB === 'market') { renderMarket(); flashPriceCell(row?.ticker); }
         else if (CURRENT_TAB === 'trade') renderTrade();
         else if (CURRENT_TAB === 'portfolio') renderPortfolio();
         else if (CURRENT_TAB === 'leaderboard') renderLeaderboard();
@@ -2149,9 +2148,8 @@ function subscribePublicPrices() {
             market: row.market || CACHE.livePrices[row.ticker]?.market || 'KOSPI',
             updated_at: row.updated_at,
           };
-          flashPriceCell(row.ticker);
               }
-        if (CURRENT_TAB === 'market') renderMarket();
+        if (CURRENT_TAB === 'market') { renderMarket(); flashPriceCell(row?.ticker); }
         else if (CURRENT_TAB === 'portfolio') renderPortfolio();
         else if (CURRENT_TAB === 'leaderboard') renderLeaderboard();
       })
