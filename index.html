@@ -630,7 +630,7 @@ function subscribeRealtime() {
             updated_at: row.updated_at,
           };
         }
-        if (CURRENT_TAB === 'market') { renderMarket(); flashPriceCell(row?.ticker); }
+        if (CURRENT_TAB === 'market') updateSingleCard(row?.ticker);
         else if (CURRENT_TAB === 'trade') renderTrade();
         else if (CURRENT_TAB === 'portfolio') renderPortfolio();
         else if (CURRENT_TAB === 'leaderboard') renderLeaderboard();
@@ -674,6 +674,29 @@ function flashPriceCell(ticker) {
   void el.offsetWidth;
   el.classList.add(flashCls);
   setTimeout(() => el.classList.remove('card-flash-up', 'card-flash-down'), 1300);
+}
+
+function updateSingleCard(ticker) {
+  const el = document.getElementById(`price-${ticker}`);
+  if (!el) return;
+  const lp = CACHE.livePrices[ticker];
+  if (!lp) return;
+  const watchlist = getWatchlist();
+  const up   = lp.change_pct > 0;
+  const down = lp.change_pct < 0;
+  const cls  = up ? 'text-success' : down ? 'text-danger' : 'text-muted';
+  const arrow = up ? '▲' : down ? '▼' : '-';
+  const pctStr = (up ? '+' : '') + Number(lp.change_pct).toFixed(2) + '%';
+  const inWl = watchlist.has(ticker);
+  // 가격과 등락만 업데이트 (카드 구조는 유지)
+  const priceEl = el.querySelector('.card-price');
+  const changeEl = el.querySelector('.card-change');
+  const pctEl = el.querySelector('.card-pct');
+  if (priceEl) priceEl.textContent = fmt.num(lp.price) + '원';
+  if (changeEl) { changeEl.textContent = arrow + ' ' + fmt.num(Math.abs(lp.change_amt)) + '원'; changeEl.className = 'card-change ' + cls; }
+  if (pctEl) { pctEl.textContent = pctStr; pctEl.className = 'card-pct ' + cls; }
+  // 테두리 번쩍임
+  flashPriceCell(ticker);
 }
 
 // =====================================================================
@@ -868,10 +891,10 @@ function renderMarket() {
         title="${inWl?'관심종목 해제':'관심종목 추가'}">${inWl?'⭐':'☆'}</button>
       <div onclick="openChartModal('${ticker}')" style="cursor:pointer;">
         <div style="font-size:13px; font-weight:600; color:var(--t1); margin-bottom:6px; padding-right:18px;">${lp.name}</div>
-        <div style="font-size:15px; font-weight:700; color:var(--t1); margin-bottom:4px; font-variant-numeric:tabular-nums;">${fmt.num(lp.price)}원</div>
+        <div class="card-price" style="font-size:15px; font-weight:700; color:var(--t1); margin-bottom:4px; font-variant-numeric:tabular-nums;">${fmt.num(lp.price)}원</div>
         <div style="display:flex; justify-content:space-between; font-size:11px;">
-          <span class="${cls}">${arrow} ${fmt.num(Math.abs(lp.change_amt))}원</span>
-          <span class="${cls}" style="font-weight:700;">${pctStr}</span>
+          <span class="card-change ${cls}">${arrow} ${fmt.num(Math.abs(lp.change_amt))}원</span>
+          <span class="card-pct ${cls}" style="font-weight:700;">${pctStr}</span>
         </div>
       </div>
     </div>`;
