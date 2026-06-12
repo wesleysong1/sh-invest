@@ -272,8 +272,10 @@ input:checked + .toggle-slider:before { transform: translateX(22px); }
           <option value="buy">매수</option>
           <option value="sell">매도</option>
         </select>
+        <button class="btn btn-sm btn-warn" onclick="detectGhostSells()">🔍 가짜매도 감지</button>
         <span id="trade-count" class="text-muted text-sm"></span>
       </div>
+      <div id="ghost-sell-result" style="margin-bottom:10px;"></div>
       <div class="table-wrap">
         <table>
           <thead>
@@ -840,6 +842,66 @@ function renderTrades() {
   }).join('');
 
   document.getElementById('trades-tbody').innerHTML = rows || '<tr><td colspan="9" class="empty">거래 내역이 없습니다</td></tr>';
+}
+
+function detectGhostSells() {
+  const studentMap = Object.fromEntries(CACHE.students.map(s => [s.id, s]));
+  const ghosts = [];
+
+  // 학생별, 종목별로 시간순 정렬 후 보유수량 추적
+  const studentIds = [...new Set(CACHE.trades.map(t => t.student_id))];
+  for (const sid of studentIds) {
+    const studentTrades = CACHE.trades
+      .filter(t => t.student_id === sid)
+      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+    const holdings = {};
+    for (const t of studentTrades) {
+      if (!holdings[t.ticker]) holdings[t.ticker] = 0;
+      if (t.action === 'buy') {
+        holdings[t.ticker] += t.qty;
+      } else {
+        if (holdings[t.ticker] < t.qty) {
+          // 가짜매도 감지!
+          const s = studentMap[sid];
+          const lp = CACHE.livePrices[t.ticker];
+          ghosts.push({
+            student: s?.name || sid,
+            student_number: s?.student_number || '',
+            ticker: lp?.name || t.ticker,
+            tradeId: t.id,
+            qty: t.qty,
+            held: holdings[t.ticker],
+            time: new Date(t.created_at).toLocaleString('ko-KR'),
+          });
+        }
+        holdings[t.ticker] = Math.max(0, holdings[t.ticker] - t.qty);
+      }
+    }
+  }
+
+  const el = document.getElementById('ghost-sell-result');
+  if (ghosts.length === 0) {
+    el.innerHTML = '<div class="alert alert-success">✅ 가짜매도 없음 — 모든 거래 정상</div>';
+  } else {
+    el.innerHTML = `<div class="alert alert-danger">
+      ⚠️ <strong>가짜매도 ${ghosts.length}건 감지됨</strong>
+      <div class="table-wrap" style="margin-top:8px;">
+        <table>
+          <thead><tr><th>학번</th><th>이름</th><th>종목</th><th class="num">매도수량</th><th class="num">당시보유</th><th class="center">거래시각</th><th class="center">취소</th></tr></thead>
+          <tbody>${ghosts.map(g => `<tr>
+            <td>${g.student_number}</td>
+            <td><strong>${g.student}</strong></td>
+            <td>${g.ticker}</td>
+            <td class="num text-danger">${fmt.num(g.qty)}주</td>
+            <td class="num">${fmt.num(g.held)}주</td>
+            <td class="center text-sm">${g.time}</td>
+            <td class="center"><button class="btn btn-sm btn-danger" onclick="cancelTrade('${g.tradeId}','${g.student}','${g.ticker}')">취소</button></td>
+          </tr>`).join('')}</tbody>
+        </table>
+      </div>
+    </div>`;
+  }
 }
 
 async function cancelTrade(id, studentName, stockName) {
