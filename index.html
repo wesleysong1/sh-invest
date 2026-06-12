@@ -599,6 +599,9 @@ async function loadAllData() {
     // 한 번에 교체 (렌더링 중간에 빈 상태 없음)
     CACHE.prevPrices = newPrevPrices;
     CACHE.livePrices = newLivePrices;
+    // 초기 타이머 설정
+    const latestRow = Object.values(newLivePrices).filter(v=>v.updated_at).sort((a,b)=>b.updated_at>a.updated_at?1:-1)[0];
+    if (latestRow?.updated_at) CACHE.lastUpdated = new Date(latestRow.updated_at);
   } catch (e) {
     console.error('데이터 로드 실패:', e);
     toast('데이터 로드 실패', 'danger');
@@ -2155,6 +2158,8 @@ async function loadPublicData() {
     }
     // atomic swap - 빈 상태 없이 한 번에 교체
     CACHE.livePrices = newPrices2;
+    const latestRow2 = Object.values(newPrices2).filter(v=>v.updated_at).sort((a,b)=>b.updated_at>a.updated_at?1:-1)[0];
+    if (latestRow2?.updated_at) CACHE.lastUpdated = new Date(latestRow2.updated_at);
     CACHE.students = studentsRes.data || [];
     CACHE.trades   = tradesRes.data  || [];
     // 비로그인 상태에서도 실시간 가격 구독
