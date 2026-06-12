@@ -853,10 +853,7 @@ function renderMarket() {
   }
   const latest = prices.reduce((a,b) => (a.updated_at > b.updated_at ? a : b), prices[0]);
   if (latest?.updated_at) {
-    CACHE.lastUpdated = new Date(latest.updated_at);
-    CACHE.justRefreshed = true;
-    updateMarketStatus();
-    setTimeout(() => { CACHE.justRefreshed = false; }, 3000);
+
   }
 
   function makeCard(ticker, lp, watchlist=getWatchlist()) {
