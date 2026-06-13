@@ -1800,27 +1800,28 @@ function openStudentPortfolioModal(studentId, studentName) {
 
     ${revealBtn}
 
-    <div id="portfolio-blur-wrap" ${alreadyRevealed ? '' : 'class="blur-content"'}>
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px;">
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px;">
         <div style="background:var(--bg); padding:10px 12px; border-radius:8px;">
           <div class="text-sm text-muted">현금 잔고</div>
-          <div style="font-weight:700;">${fmt.krw(port.rawCash ?? port.cash)}</div>
+          <div style="font-weight:700;" class="${alreadyRevealed?'':'blur-cell'}">${fmt.krw(port.rawCash ?? port.cash)}</div>
         </div>
         <div style="background:var(--bg); padding:10px 12px; border-radius:8px;">
           <div class="text-sm text-muted">주식 평가액</div>
-          <div style="font-weight:700;">${fmt.krw(port.stockValue)}</div>
+          <div style="font-weight:700;" class="${alreadyRevealed?'':'blur-cell'}">${fmt.krw(port.stockValue)}</div>
         </div>
       </div>
       <div class="table-wrap">
         <table>
           <thead><tr>
-            <th>종목</th><th class="num">수량</th>
-            <th class="num">현재가</th><th class="num">평가금액</th><th class="num">수익률</th>
+            <th class="${alreadyRevealed?'':'blur-cell'}">종목</th>
+            <th class="num ${alreadyRevealed?'':'blur-cell'}">수량</th>
+            <th class="num ${alreadyRevealed?'':'blur-cell'}">현재가</th>
+            <th class="num ${alreadyRevealed?'':'blur-cell'}">평가금액</th>
+            <th class="num">수익률</th>
           </tr></thead>
-          <tbody>${holdingsRows}</tbody>
+          <tbody>${holdingsRows.replace(/<td/g, alreadyRevealed ? '<td' : '<td class="blur-cell"').replace(/<td class="blur-cell" class="num font-bold/g, '<td class="num font-bold')}</tbody>
         </table>
       </div>
-    </div>
 
     <div class="modal-actions" style="margin-top:12px;">
       <button class="btn" onclick="closeModal()">닫기</button>
