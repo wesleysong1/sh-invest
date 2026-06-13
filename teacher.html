@@ -708,9 +708,9 @@ async function uploadStudents(parsed) {
       student_number: p.student_number,
       name: p.name, pin: p.pin,
       class_id: classMap[p.student_number.slice(0,2)] || classMap['31'],
-      initial_cash: 10000000,
+      initial_cash: 100000000,
     }));
-    const { error } = await sb.from('students').upsert(inserts, { onConflict: 'student_number,name' });
+    const { data, error } = await sb.rpc('upsert_students', { p_students: inserts });
     if (error) throw error;
     await loadAll();
     document.getElementById('csv-preview').innerHTML = '';
@@ -741,9 +741,9 @@ async function saveEditStudent(id) {
 
   if (!num || !name || !pin) return toast('학번, 이름, 비밀번호를 모두 입력해주세요', 'danger');
 
-  const { error } = await sb.from('students')
-    .update({ student_number: num, name, pin })
-    .eq('id', id);
+  const { error } = await sb.rpc('update_student', {
+    p_id: id, p_student_number: num, p_name: name, p_pin: pin
+  });
 
   if (error) { toast('수정 실패: ' + error.message, 'danger'); return; }
   await loadAll();
@@ -766,7 +766,7 @@ async function resetPw(id, name) {
 async function doResetPw(id, name) {
   const pw = document.getElementById('new-pw').value.trim();
   if (!pw) return toast('비밀번호를 입력해주세요', 'danger');
-  const { error } = await sb.from('students').update({ pin: pw }).eq('id', id);
+  const { error } = await sb.rpc('reset_student_pin', { p_id: id, p_pin: pw });
   if (error) { toast('초기화 실패: ' + error.message, 'danger'); return; }
   closeModal();
   await loadAll();
@@ -775,8 +775,7 @@ async function doResetPw(id, name) {
 
 async function deleteStudent(id, name) {
   if (!confirm(`${name} 학생을 삭제하시겠습니까?\n거래 내역도 함께 삭제됩니다.`)) return;
-  await sb.from('trades').delete().eq('student_id', id);
-  const { error } = await sb.from('students').delete().eq('id', id);
+  const { error } = await sb.rpc('delete_student', { p_id: id });
   if (error) { toast('삭제 실패', 'danger'); return; }
   await loadAll();
   toast(`${name} 삭제 완료`, 'success');
@@ -798,8 +797,7 @@ async function doDeleteAll() {
   if (document.getElementById('confirm-input').value !== '삭제확인') {
     toast('삭제확인 을 정확히 입력해주세요', 'danger'); return;
   }
-  await sb.from('trades').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-  await sb.from('students').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+  await sb.rpc('delete_all_students');
   closeModal();
   await loadAll();
   toast('전체 삭제 완료', 'success');
@@ -1220,7 +1218,7 @@ async function postNotice() {
   const content = document.getElementById('notice-content-text').value.trim();
   if (!title || !content) return toast('제목과 내용을 입력해주세요', 'danger');
 
-  const { error } = await sb.from('announcements').insert({ title, content, is_active: true });
+  const { error } = await sb.rpc('insert_announcement', { p_title: title, p_content: content });
   if (error) { toast('등록 실패: ' + error.message, 'danger'); return; }
   document.getElementById('notice-title').value = '';
   document.getElementById('notice-content-text').value = '';
@@ -1229,7 +1227,10 @@ async function postNotice() {
 }
 
 async function toggleNotice(id, isActive) {
-  const { error } = await sb.from('announcements').update({ is_active: isActive }).eq('id', id);
+  const notice = (CACHE.notices||[]).find(n=>n.id===id);
+  const { error } = await sb.rpc('update_announcement', {
+    p_id: id, p_title: notice?.title||'', p_content: notice?.content||'', p_is_active: isActive
+  });
   if (error) { toast('수정 실패', 'danger'); return; }
   await loadAll();
   toast(isActive ? '공지 표시 중' : '공지 숨김', 'success');
@@ -1270,7 +1271,10 @@ async function saveEditNotice(id) {
   const title   = document.getElementById('edit-notice-title').value.trim();
   const content = document.getElementById('edit-notice-content').value.trim();
   if (!title || !content) return toast('제목과 내용을 입력해주세요', 'danger');
-  const { error } = await sb.from('announcements').update({ title, content }).eq('id', id);
+  const notice = (CACHE.notices||[]).find(n=>n.id===id);
+  const { error } = await sb.rpc('update_announcement', {
+    p_id: id, p_title: title, p_content: content, p_is_active: notice?.is_active ?? true
+  });
   if (error) { toast('수정 실패: ' + error.message, 'danger'); return; }
   closeModal();
   await loadAll();
@@ -1279,7 +1283,7 @@ async function saveEditNotice(id) {
 
 async function deleteNotice(id) {
   if (!confirm('공지를 삭제하시겠습니까?')) return;
-  const { error } = await sb.from('announcements').delete().eq('id', id);
+  const { error } = await sb.rpc('delete_announcement', { p_id: id });
   if (error) { toast('삭제 실패', 'danger'); return; }
   await loadAll();
   toast('삭제 완료', 'success');
@@ -1372,9 +1376,7 @@ function filterInquiry(type) {
 }
 
 async function confirmInquiry(id) {
-  const { error } = await sb.from('inquiries')
-    .update({ is_confirmed: true, confirmed_at: new Date().toISOString() })
-    .eq('id', id);
+  const { error } = await sb.rpc('confirm_inquiry', { p_id: id });
   if (error) { toast('처리 실패: ' + error.message, 'danger'); return; }
   await loadAll();
   toast('문의 확인 처리 완료', 'success');

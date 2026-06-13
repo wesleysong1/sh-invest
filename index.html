@@ -859,7 +859,7 @@ async function toggleWatchlist(ticker) {
   if (SESSION) {
     CACHE.watchlist = arr;
     try {
-      await sb.from('students').update({ watchlist: arr }).eq('id', SESSION.studentId);
+      await sb.rpc('update_watchlist', { p_student_id: SESSION.studentId, p_watchlist: arr });
     } catch(e) { console.warn('관심종목 저장 실패:', e); }
   } else {
     localStorage.setItem(WATCHLIST_KEY, JSON.stringify(arr));
