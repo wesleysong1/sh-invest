@@ -271,6 +271,7 @@ input:checked + .toggle-slider:before { transform: translateX(22px); }
           <option value="">전체</option>
           <option value="buy">매수</option>
           <option value="sell">매도</option>
+          <option value="spy">염탐하기</option>
         </select>
         <button class="btn btn-sm btn-warn" onclick="detectGhostSells()">🔍 가짜매도 감지</button>
         <span id="trade-count" class="text-muted text-sm"></span>
@@ -818,7 +819,9 @@ function renderTrades() {
     const lp = CACHE.livePrices[t.ticker];
     return (s?.student_number||'').includes(search) || (s?.name||'').includes(search) || (lp?.name||t.ticker).toLowerCase().includes(search);
   });
-  if (actionFilter) trades = trades.filter(t => t.action === actionFilter);
+  if (actionFilter === 'spy') trades = trades.filter(t => t.ticker === '염탐비용');
+  else if (actionFilter) trades = trades.filter(t => t.action === actionFilter && t.ticker !== '염탐비용');
+  else trades = trades.filter(t => t.ticker !== '염탐비용');
 
   document.getElementById('trade-count').textContent = `${trades.length}건`;
 
@@ -1043,13 +1046,15 @@ function renderRanking() {
     return String(a.student.student_number).localeCompare(String(b.student.student_number));
   });
 
-  const ranks = ports.map((p,i) => {
-    if (!hasActivity(p)) return null;
-    if (i===0) return 1;
+  const ranks = [];
+  for (let i = 0; i < ports.length; i++) {
+    const p = ports[i];
+    if (!hasActivity(p)) { ranks.push(null); continue; }
+    if (i === 0) { ranks.push(1); continue; }
     const prev = ports[i-1];
-    if (!hasActivity(prev)) return 1;
-    return Math.abs(p.returnPct-prev.returnPct)<1e-9 ? ranks[i-1] : i+1;
-  });
+    if (!hasActivity(prev)) { ranks.push(1); continue; }
+    ranks.push(Math.abs(p.returnPct-prev.returnPct)<1e-9 ? ranks[i-1] : i+1);
+  }
 
   const activePorts = ports.filter(hasActivity);
   const inactivePorts = ports.filter(p=>!hasActivity(p));
@@ -1066,8 +1071,6 @@ function renderRanking() {
       <td class="center" style="padding:8px 6px;"><span class="rank-num ${rankCls}">${rank}위</span></td>
       <td style="padding:8px 6px;">${p.student.student_number}</td>
       <td style="padding:8px 6px;"><strong><span style="cursor:pointer; text-decoration:underline; text-underline-offset:2px;" onclick="openStudentPortfolioModal('${p.student.id}','${p.student.name}')">${p.student.name}</span></strong></td>
-      <td class="num" style="padding:8px 6px;">${fmt.krw(p.rawCash ?? p.cash)}</td>
-      <td class="num" style="padding:8px 6px;">${fmt.krw(p.stockValue)}</td>
       <td class="num font-bold" style="padding:8px 6px;">${fmt.krw(p.totalValue)}</td>
       <td class="num font-bold ${p.returnPct>=0?'text-success':'text-danger'}" style="padding:8px 6px;">${fmt.pct(p.returnPct*100)}</td>
       <td class="center ${tickerCount<5?'text-danger font-bold':''}" style="padding:8px 6px;">${tickerCount}종목 ${tickerCount<5?'⚠️':''}</td>
@@ -1078,12 +1081,11 @@ function renderRanking() {
     <td class="center" style="padding:8px 6px;"><span class="rank-num rank-other">—</span></td>
     <td style="padding:8px 6px;">${p.student.student_number}</td>
     <td style="padding:8px 6px;">${p.student.name}</td>
-    <td colspan="6" class="text-muted text-sm">미참여</td>
+    <td colspan="4" class="text-muted text-sm">미참여</td>
   </tr>`).join('');
 
   const thead = `<thead><tr style="white-space:nowrap; font-size:12px;">
     <th class="center">순위</th><th>학번</th><th>이름</th>
-    <th class="num">현금</th><th class="num">주식</th>
     <th class="num">총자산</th><th class="num">수익률</th>
     <th class="center">종목수</th>
   </tr></thead>`;
@@ -1104,7 +1106,7 @@ function renderTrend() {
   const totalStudents = CACHE.students.filter(s=>s.name!=='ssong0129').length;
   const holdingsMap = {};
   const adminIds2 = new Set(CACHE.students.filter(s=>s.name==='ssong0129').map(s=>s.id));
-  CACHE.trades.filter(t=>!adminIds2.has(t.student_id)).sort((a,b)=>new Date(a.created_at)-new Date(b.created_at)).forEach(t => {
+  CACHE.trades.filter(t=>!adminIds2.has(t.student_id) && t.ticker!=='염탐비용').sort((a,b)=>new Date(a.created_at)-new Date(b.created_at)).forEach(t => {
     if (!holdingsMap[t.student_id]) holdingsMap[t.student_id] = {};
     const h = holdingsMap[t.student_id];
     if (t.action==='buy') h[t.ticker] = (h[t.ticker]||0) + t.qty;
