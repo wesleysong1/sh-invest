@@ -561,7 +561,7 @@ async function loadAllData() {
   if (!SESSION) return;
   try {
     const [studentsRes, tradesRes, pricesRes, ordersRes, inquiriesRes] = await Promise.all([
-      sb.from('students').select('id,student_number,name,initial_cash,class_id,watchlist').limit(500),
+      sb.from('students_public').select('id,student_number,name,initial_cash,class_id,watchlist').limit(500),
       sb.from('trades').select('*').limit(10000),
       sb.from('live_prices').select('ticker,name,sector,market,price,change_amt,change_pct,updated_at').limit(200),
       sb.from('pending_orders').select('*')
@@ -2196,7 +2196,7 @@ async function loadPublicData() {
   try {
     const [pricesRes, studentsRes, tradesRes] = await Promise.all([
       sb.from('live_prices').select('ticker,name,sector,market,price,change_amt,change_pct,updated_at').limit(200),
-      sb.from('students').select('id,student_number,name,initial_cash,class_id,watchlist').limit(500),
+      sb.from('students_public').select('id,student_number,name,initial_cash,class_id,watchlist').limit(500),
       sb.from('trades').select('*').limit(10000),
     ]);
     const newPrices2 = {};

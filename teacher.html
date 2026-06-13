@@ -409,7 +409,7 @@ function updateClock() {
 async function loadAll() {
   try {
     const [studentsRes, tradesRes, pricesRes, noticesRes, inquiriesRes] = await Promise.all([
-      sb.from('students').select('id,student_number,name,initial_cash,class_id,pin').limit(500),
+      sb.rpc('get_teacher_students'),
       sb.from('trades').select('*').limit(10000),
       sb.from('live_prices').select('ticker,name,sector,price,change_amt,change_pct,updated_at').limit(200),
       sb.from('announcements').select('*').order('created_at', { ascending: false }).limit(50),
@@ -551,11 +551,11 @@ function renderStudents() {
     return `<tr id="row-${s.id}">
       <td><span id="disp-num-${s.id}">${s.student_number}</span></td>
       <td><strong><span id="disp-name-${s.id}">${s.name}</span></strong></td>
-      <td class="text-muted text-sm"><span id="disp-pin-${s.id}">${s.pin}</span></td>
+      <td class="text-muted text-sm"><span id="disp-pin-${s.id}">${s.pin_text || "(미설정)"}</span></td>
       <td class="num">${fmt.krw(s.initial_cash)}</td>
       <td class="center">${tradeCount}건</td>
       <td class="center" style="display:flex; gap:4px; flex-wrap:wrap; justify-content:center;">
-        <button class="btn btn-sm btn-primary" id="btn-edit-${s.id}" onclick="startEditStudent('${s.id}','${s.student_number}','${s.name}','${s.pin}')">수정</button>
+        <button class="btn btn-sm btn-primary" id="btn-edit-${s.id}" onclick="startEditStudent('${s.id}','${s.student_number}','${s.name}','${s.pin_text||''}')">수정</button>
         <button class="btn btn-sm btn-danger" onclick="deleteStudent('${s.id}','${s.name}')">삭제</button>
       </td>
     </tr>`;
