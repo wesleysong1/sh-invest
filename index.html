@@ -560,7 +560,7 @@ async function enterApp() {
 async function loadAllData() {
   if (!SESSION) return;
   try {
-    const [studentsRes, tradesRes, pricesRes, ordersRes, inquiriesRes] = await Promise.all([
+    const [studentsRes, tradesRes, pricesRes, ordersRes, inquiriesRes, revealsRes] = await Promise.all([
       sb.from('students_public').select('id,student_number,name,initial_cash,class_id,watchlist').limit(500),
       sb.from('trades').select('*').limit(10000),
       sb.from('live_prices').select('ticker,name,sector,market,price,change_amt,change_pct,updated_at').limit(200),
@@ -568,12 +568,15 @@ async function loadAllData() {
         .eq('student_id', SESSION.studentId).order('created_at', { ascending: false }).limit(200),
       sb.from('inquiries').select('*')
         .eq('student_id', SESSION.studentId).order('created_at', { ascending: false }).limit(100),
+      sb.from('portfolio_reveals').select('*')
+        .eq('viewer_id', SESSION.studentId),
     ]);
 
     CACHE.students  = studentsRes.data || [];
     CACHE.trades    = tradesRes.data   || [];
     CACHE.orders    = ordersRes.data   || [];
     CACHE.inquiries = inquiriesRes.data || [];
+    CACHE.reveals   = revealsRes.data  || [];
 
     // 관심종목 로드
     const me = CACHE.students.find(s => s.id === SESSION.studentId);
@@ -1721,16 +1724,37 @@ function renderTrend() {
 }
 
 // --- 순위표 탭 ---
-// 확인한 포트폴리오 목록 (세션 메모리)
-const REVEALED_PORTFOLIOS = new Set();
-const SPY_FEE = 500000;
+// 포트폴리오 열람 (DB 기반, 24시간 유효)
+const SPY_FEE = 300000;
+const SPY_DURATION_MS = 24 * 60 * 60 * 1000;
+
+function isRevealed(studentId) {
+  if (!CACHE.reveals) return false;
+  const r = CACHE.reveals.find(r => r.target_id === studentId);
+  if (!r) return false;
+  return Date.now() - new Date(r.revealed_at).getTime() < SPY_DURATION_MS;
+}
+
+async function saveReveal(studentId) {
+  await sb.from('portfolio_reveals').upsert({
+    viewer_id: SESSION.studentId,
+    target_id: studentId,
+    revealed_at: new Date().toISOString(),
+  }, { onConflict: 'viewer_id,target_id' });
+  // 캐시 업데이트
+  if (!CACHE.reveals) CACHE.reveals = [];
+  const idx = CACHE.reveals.findIndex(r => r.target_id === studentId);
+  const entry = { viewer_id: SESSION.studentId, target_id: studentId, revealed_at: new Date().toISOString() };
+  if (idx >= 0) CACHE.reveals[idx] = entry;
+  else CACHE.reveals.push(entry);
+}
 
 function openStudentPortfolioModal(studentId, studentName) {
   const port = getPortfolio(studentId);
   if (!port) return toast('포트폴리오 정보가 없습니다', 'danger');
 
   const isMe = SESSION && studentId === SESSION.studentId;
-  const isRevealed = isMe || REVEALED_PORTFOLIOS.has(studentId);
+  const alreadyRevealed = isMe || isRevealed(studentId);
   const gainCls = port.gain >= 0 ? 'text-success' : 'text-danger';
   const pctStr = (port.returnPct >= 0 ? '+' : '') + (port.returnPct * 100).toFixed(2) + '%';
 
@@ -1751,7 +1775,7 @@ function openStudentPortfolioModal(studentId, studentName) {
   const myPort = SESSION ? getPortfolio(SESSION.studentId) : null;
   const canAfford = myPort && myPort.cash >= SPY_FEE;
 
-  const revealBtn = (!isMe && !isRevealed && SESSION) ? `
+  const revealBtn = (!isMe && !alreadyRevealed && SESSION) ? `
     <div id="reveal-area" style="background:var(--bg); border-radius:8px; padding:12px; margin-bottom:14px; text-align:center;">
       <div class="text-sm text-muted" style="margin-bottom:8px;">
         🔒 상세 정보를 확인하려면 <strong>${fmt.krw(SPY_FEE)}</strong>이 필요해요
@@ -1759,7 +1783,7 @@ function openStudentPortfolioModal(studentId, studentName) {
       <button class="btn btn-primary" id="btn-reveal-portfolio"
         onclick="revealPortfolio('${studentId}','${studentName}')"
         ${!canAfford ? 'disabled' : ''}>
-        ${canAfford ? '🔍 확인하기 (-50만원)' : '현금 부족 (50만원 필요)'}
+        ${canAfford ? '🔍 확인하기 (-30만원)' : '현금 부족 (50만원 필요)'}
       </button>
     </div>` : '';
 
@@ -1776,7 +1800,7 @@ function openStudentPortfolioModal(studentId, studentName) {
 
     ${revealBtn}
 
-    <div id="portfolio-blur-wrap" ${isRevealed ? '' : 'class="blur-content"'}>
+    <div id="portfolio-blur-wrap" ${alreadyRevealed ? '' : 'class="blur-content"'}>
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px;">
         <div style="background:var(--bg); padding:10px 12px; border-radius:8px;">
           <div class="text-sm text-muted">현금 잔고</div>
@@ -1825,7 +1849,7 @@ async function revealPortfolio(studentId, studentName) {
     });
     if (error) throw error;
 
-    REVEALED_PORTFOLIOS.add(studentId);
+    await saveReveal(studentId);
     await loadAllData();
 
     const wrap = document.getElementById('portfolio-blur-wrap');
@@ -1835,7 +1859,7 @@ async function revealPortfolio(studentId, studentName) {
     toast(`${studentName} 학생 포트폴리오 확인 완료 (-${fmt.krw(SPY_FEE)})`, 'success');
   } catch(e) {
     toast('처리 실패: ' + e.message, 'danger');
-    if (btn) { btn.disabled = false; btn.textContent = '🔍 확인하기 (-50만원)'; }
+    if (btn) { btn.disabled = false; btn.textContent = '🔍 확인하기 (-30만원)'; }
   }
 }
 
