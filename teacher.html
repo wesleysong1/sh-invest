@@ -708,7 +708,7 @@ async function uploadStudents(parsed) {
       student_number: p.student_number,
       name: p.name, pin: p.pin,
       class_id: classMap[p.student_number.slice(0,2)] || classMap['31'],
-      initial_cash: 100000000,
+      initial_cash: 10000000,
     }));
     const { data, error } = await sb.rpc('upsert_students', { p_students: inserts });
     if (error) throw error;

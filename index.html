@@ -1725,7 +1725,7 @@ function renderTrend() {
 
 // --- 순위표 탭 ---
 // 포트폴리오 열람 (DB 기반, 24시간 유효)
-const SPY_FEE = 300000;
+const SPY_FEE = 30000;
 const SPY_DURATION_MS = 24 * 60 * 60 * 1000;
 
 function isRevealed(studentId) {
@@ -1733,6 +1733,17 @@ function isRevealed(studentId) {
   const r = CACHE.reveals.find(r => r.target_id === studentId);
   if (!r) return false;
   return Date.now() - new Date(r.revealed_at).getTime() < SPY_DURATION_MS;
+}
+
+function getRevealRemaining(studentId) {
+  if (!CACHE.reveals) return null;
+  const r = CACHE.reveals.find(r => r.target_id === studentId);
+  if (!r) return null;
+  const remaining = SPY_DURATION_MS - (Date.now() - new Date(r.revealed_at).getTime());
+  if (remaining <= 0) return null;
+  const h = Math.floor(remaining / 3600000);
+  const m = Math.floor((remaining % 3600000) / 60000);
+  return h > 0 ? `${h}시간 ${m}분` : `${m}분`;
 }
 
 async function saveReveal(studentId) {
@@ -1766,56 +1777,67 @@ function openStudentPortfolioModal(studentId, studentName) {
         const gc = i.gain >= 0 ? 'text-success' : 'text-danger';
         const iPct = (i.returnPct * 100).toFixed(2);
         return `<tr>
-          <td class="spy-blur"><strong>${i.name}</strong></td>
-          <td class="num spy-blur">${fmt.num(i.qty)}주</td>
-          <td class="num spy-blur">${fmt.num(i.currentPrice)}원</td>
-          <td class="num spy-blur">${fmt.krw(i.value)}</td>
+          <td><strong>${i.name}</strong></td>
+          <td class="num">${fmt.num(i.qty)}주</td>
+          <td class="num">${fmt.num(i.currentPrice)}원</td>
+          <td class="num">${fmt.krw(i.value)}</td>
           <td class="num font-bold ${gc}">${i.returnPct>=0?'+':''}${iPct}%</td>
         </tr>`;
       }).join('');
+
+  // 비공개 시 오버레이 HTML
+  const overlay = (!isMe && !revealed) ? `
+    <div id="spy-overlay" style="
+      position:absolute; inset:0; z-index:10; border-radius:8px;
+      backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
+      background:rgba(248,250,252,0.55);
+      display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;">
+      <div style="font-size:13px; color:var(--t2); font-weight:600;">🔒 상세 포트폴리오를 보려면 <strong style="color:var(--p);">${fmt.krw(SPY_FEE)}</strong>이 필요해요</div>
+      ${SESSION
+        ? `<button class="btn btn-primary" id="btn-reveal-portfolio"
+            onclick="confirmReveal('${studentId}','${studentName}')"
+            ${!canAfford ? 'disabled' : ''} style="font-size:14px; padding:10px 20px;">
+            👁️ 염탐하기 (-30만원)${!canAfford ? '<br><small>(현금 부족)</small>' : ''}
+          </button>`
+        : `<button class="btn btn-primary" onclick="closeModal(); openLoginModal()" style="font-size:14px; padding:10px 20px;">
+            👁️ 염탐하기 (로그인 필요)
+          </button>`}
+    </div>` : '';
 
   showModal(`
     <div class="modal-head">
       <div>
         <div class="modal-title">${studentName} 학생 포트폴리오</div>
-        <div style="font-size:12px; color:var(--t3); margin-top:2px;">
-          수익률 <span class="${gainCls}" style="font-weight:700;">${pctStr}</span>
+        <div style="font-size:12px; color:var(--t3); margin-top:2px; display:flex; align-items:center; gap:8px;">
+          <span>수익률 <span class="${gainCls}" style="font-weight:700;">${pctStr}</span></span>
+          ${!isMe && revealed ? `<span style="background:#dcfce7; color:#16a34a; padding:1px 8px; border-radius:10px; font-size:11px; font-weight:600;">👁️ 염탐 ${getRevealRemaining(studentId)} 남음</span>` : ''}
         </div>
       </div>
       <button class="modal-close" onclick="closeModal()">×</button>
     </div>
 
-    ${!isMe && !revealed && SESSION ? `
-    <div id="reveal-area" style="background:var(--bg); border-radius:8px; padding:12px; margin-bottom:14px; text-align:center;">
-      <div class="text-sm text-muted" style="margin-bottom:8px;">🔒 상세 정보를 보려면 <strong>${fmt.krw(SPY_FEE)}</strong>이 필요해요</div>
-      <button class="btn btn-primary" id="btn-reveal-portfolio"
-        onclick="confirmReveal('${studentId}','${studentName}')"
-        ${!canAfford ? 'disabled' : ''}>
-        👁️ 염탐하기 (-30만원)${!canAfford ? ' (현금 부족)' : ''}
-      </button>
-    </div>` : ''}
-
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px;">
-      <div style="background:var(--bg); padding:10px 12px; border-radius:8px;">
-        <div class="text-sm text-muted">현금 잔고</div>
-        <div class="spy-blur" style="font-weight:700;">${fmt.krw(port.rawCash ?? port.cash)}</div>
+    <div style="position:relative; border-radius:8px;">
+      ${overlay}
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px;">
+        <div style="background:var(--bg); padding:10px 12px; border-radius:8px;">
+          <div class="text-sm text-muted">현금 잔고</div>
+          <div style="font-weight:700;">${fmt.krw(port.rawCash ?? port.cash)}</div>
+        </div>
+        <div style="background:var(--bg); padding:10px 12px; border-radius:8px;">
+          <div class="text-sm text-muted">주식 평가액</div>
+          <div style="font-weight:700;">${fmt.krw(port.stockValue)}</div>
+        </div>
       </div>
-      <div style="background:var(--bg); padding:10px 12px; border-radius:8px;">
-        <div class="text-sm text-muted">주식 평가액</div>
-        <div class="spy-blur" style="font-weight:700;">${fmt.krw(port.stockValue)}</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr>
+            <th>종목</th><th class="num">수량</th>
+            <th class="num">현재가</th><th class="num">평가금액</th>
+            <th class="num">수익률</th>
+          </tr></thead>
+          <tbody>${holdingsRows}</tbody>
+        </table>
       </div>
-    </div>
-    <div class="table-wrap">
-      <table>
-        <thead><tr>
-          <th class="spy-blur">종목</th>
-          <th class="num spy-blur">수량</th>
-          <th class="num spy-blur">현재가</th>
-          <th class="num spy-blur">평가금액</th>
-          <th class="num">수익률</th>
-        </tr></thead>
-        <tbody>${holdingsRows}</tbody>
-      </table>
     </div>
 
     <div class="modal-actions" style="margin-top:12px;">
@@ -1823,11 +1845,6 @@ function openStudentPortfolioModal(studentId, studentName) {
     </div>
   `);
   document.getElementById('modal-content').style.maxWidth = '560px';
-
-  // 렌더 후 blur 적용/해제
-  if (revealed) {
-    document.querySelectorAll('.spy-blur').forEach(el => el.classList.remove('spy-blur'));
-  }
 }
 
 function confirmReveal(studentId, studentName) {
@@ -1858,8 +1875,19 @@ async function revealPortfolio(studentId, studentName) {
     await saveReveal(studentId);
     await loadAllData();
 
-    document.querySelectorAll('.spy-blur').forEach(el => el.classList.remove('spy-blur'));
-    document.getElementById('reveal-area')?.remove();
+    document.getElementById('spy-overlay')?.remove();
+
+    // 남은시간 배지 즉시 업데이트
+    const subtitleEl = document.querySelector('#modal-content .modal-title + div');
+    if (subtitleEl) {
+      const remaining = getRevealRemaining(studentId);
+      if (remaining) {
+        const badge = document.createElement('span');
+        badge.style.cssText = 'background:#dcfce7; color:#16a34a; padding:1px 8px; border-radius:10px; font-size:11px; font-weight:600; margin-left:8px;';
+        badge.textContent = `👁️ 염탐 ${remaining} 남음`;
+        subtitleEl.appendChild(badge);
+      }
+    }
 
     toast(`${studentName} 학생 포트폴리오 확인 완료 (-${fmt.krw(SPY_FEE)})`, 'success');
   } catch(e) {
@@ -1912,7 +1940,6 @@ function renderLeaderboard() {
 
   const thead = `<thead><tr style="white-space:nowrap; font-size:12px;">
     <th class="center">순위</th><th>학번</th><th>이름</th>
-    <th class="num">현금</th><th class="num">주식</th>
     <th class="num">총자산</th><th class="num">수익률</th>
   </tr></thead>`;
 
@@ -1930,8 +1957,6 @@ function renderLeaderboard() {
       <td class="center" style="padding:8px 6px;">${rankCell}</td>
       <td style="padding:8px 6px;">${p.student.student_number}</td>
       <td style="padding:8px 6px;"><strong><span style='cursor:pointer; text-decoration:underline; text-underline-offset:2px;' onclick="openStudentPortfolioModal('${p.student.id}','${p.student.name}')">${p.student.name}</span></strong></td>
-      <td class="num" style="padding:8px 6px;">${fmt.krw(p.rawCash ?? p.cash)}</td>
-      <td class="num" style="padding:8px 6px;">${fmt.krw(p.stockValue)}</td>
       <td class="num font-bold" style="padding:8px 6px;">${fmt.krw(p.totalValue)}</td>
       <td class="num font-bold ${p.returnPct>=0?'text-success':'text-danger'}" style="padding:8px 6px;">${fmt.pct(p.returnPct*100)}</td>
     </tr>`;
@@ -1954,7 +1979,6 @@ function renderLeaderboard() {
 
   const thead2 = `<thead><tr style="white-space:nowrap; font-size:12px;">
     <th class="center">순위</th><th>학번</th><th>이름</th>
-    <th class="num">현금</th><th class="num">주식</th>
     <th class="num">총자산</th><th class="num">수익률</th>
     <th class="center">종목수</th>
   </tr></thead>`;
@@ -1987,8 +2011,6 @@ function renderLeaderboard() {
       <td class="center" style="padding:8px 6px;">${rankCell}</td>
       <td style="padding:8px 6px;">${p.student.student_number}</td>
       <td style="padding:8px 6px;"><strong><span style='cursor:pointer; text-decoration:underline; text-underline-offset:2px;' onclick="openStudentPortfolioModal('${p.student.id}','${p.student.name}')">${p.student.name}</span></strong></td>
-      <td class="num" style="padding:8px 6px;">${fmt.krw(p.rawCash ?? p.cash)}</td>
-      <td class="num" style="padding:8px 6px;">${fmt.krw(p.stockValue)}</td>
       <td class="num font-bold" style="padding:8px 6px;">${fmt.krw(p.totalValue)}</td>
       <td class="num font-bold ${p.returnPct>=0?'text-success':'text-danger'}" style="padding:8px 6px;">${fmt.pct(p.returnPct*100)}</td>
       <td class="center" style="padding:8px 6px;">${tickerCell}</td>
