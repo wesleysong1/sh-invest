@@ -871,6 +871,24 @@ async function toggleWatchlist(ticker) {
   renderMarket();
 }
 
+// 섹터 접힘 상태 (localStorage)
+const SECTOR_COLLAPSE_KEY = 'rt_sector_collapse_v1';
+function getSectorCollapsed() {
+  try { return new Set(JSON.parse(localStorage.getItem(SECTOR_COLLAPSE_KEY) || '[]')); }
+  catch { return new Set(); }
+}
+function toggleSectorCollapse(label) {
+  const collapsed = getSectorCollapsed();
+  if (collapsed.has(label)) collapsed.delete(label);
+  else collapsed.add(label);
+  localStorage.setItem(SECTOR_COLLAPSE_KEY, JSON.stringify([...collapsed]));
+  // 해당 섹터만 토글
+  const grid = document.getElementById('sector-grid-' + encodeURIComponent(label));
+  const btn  = document.getElementById('sector-btn-'  + encodeURIComponent(label));
+  if (grid) grid.style.display = collapsed.has(label) ? 'none' : 'grid';
+  if (btn)  btn.textContent = collapsed.has(label) ? '▶' : '▼';
+}
+
 const SECTOR_GROUPS = [
   { label: '반도체 · IT', sectors: ['반도체','AI반도체','반도체장비','IT','통신장비'] },
   { label: '자동차 · 방산', sectors: ['자동차','자동차부품','방산'] },
@@ -922,15 +940,25 @@ function renderMarket() {
 
   // 관심종목 섹션
   const watchItems = allEntries.filter(([ticker]) => watchlist.has(ticker));
-  const watchSection = watchItems.length === 0 ? '' : `<div style="margin-bottom:18px;">
-    <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+  const watchCollapsed = collapsedSectors.has('⭐ 관심종목');
+  const watchSection = watchItems.length === 0 ? '' : `<div style="margin-bottom:14px;">
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px; cursor:pointer;"
+         onclick="toggleSectorCollapse('⭐ 관심종목')">
+      <button id="sector-btn-${encodeURIComponent('⭐ 관심종목')}"
+        style="background:none; border:none; font-size:11px; color:var(--t3); cursor:pointer; padding:0; width:14px; flex-shrink:0;">
+        ${watchCollapsed ? '▶' : '▼'}
+      </button>
       <span style="font-size:12px; font-weight:600; color:#f59e0b; white-space:nowrap;">⭐ 관심종목</span>
+      <span style="font-size:11px; color:var(--t3);">${watchItems.length}종목</span>
       <div style="flex:1; height:1px; background:#fde68a;"></div>
     </div>
-    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(148px, 1fr)); gap:6px;">
+    <div id="sector-grid-${encodeURIComponent('⭐ 관심종목')}"
+         style="display:${watchCollapsed ? 'none' : 'grid'}; grid-template-columns:repeat(auto-fill, minmax(148px, 1fr)); gap:6px;">
       ${watchItems.map(([ticker, lp]) => makeCard(ticker, lp, watchlist)).join('')}
     </div>
   </div>`;
+
+  const collapsedSectors = getSectorCollapsed();
 
   const sections = SECTOR_GROUPS.map(group => {
     const items = allEntries.filter(([ticker, lp]) =>
@@ -948,24 +976,43 @@ function renderMarket() {
     items.forEach(([ticker]) => usedTickers.add(ticker));
     if (items.length === 0) return '';
     const cards = items.map(([ticker, lp]) => makeCard(ticker, lp, watchlist)).join('');
-    return `<div style="margin-bottom:18px;">
-      <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+    const isCollapsed = collapsedSectors.has(group.label);
+    const encLabel = encodeURIComponent(group.label);
+    return `<div style="margin-bottom:14px;">
+      <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px; cursor:pointer;"
+           onclick="toggleSectorCollapse('${group.label}')">
+        <button id="sector-btn-${encLabel}"
+          style="background:none; border:none; font-size:11px; color:var(--t3); cursor:pointer; padding:0; width:14px; flex-shrink:0;">
+          ${isCollapsed ? '▶' : '▼'}
+        </button>
         <span style="font-size:12px; font-weight:600; color:var(--t2); white-space:nowrap;">${group.label}</span>
+        <span style="font-size:11px; color:var(--t3);">${items.length}종목</span>
         <div style="flex:1; height:1px; background:var(--br);"></div>
       </div>
-      <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(148px, 1fr)); gap:6px;">${cards}</div>
+      <div id="sector-grid-${encLabel}"
+           style="display:${isCollapsed ? 'none' : 'grid'}; grid-template-columns:repeat(auto-fill, minmax(148px, 1fr)); gap:6px;">
+        ${cards}
+      </div>
     </div>`;
   }).join('');
 
   // 섹터 미분류 종목
   const etcItems = allEntries.filter(([ticker]) => !usedTickers.has(ticker))
     .sort((a,b) => (a[1].name||'').localeCompare(b[1].name||'', 'ko'));
-  const etcSection = etcItems.length === 0 ? '' : `<div style="margin-bottom:18px;">
-    <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+  const etcCollapsed = collapsedSectors.has('기타');
+  const etcSection = etcItems.length === 0 ? '' : `<div style="margin-bottom:14px;">
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px; cursor:pointer;"
+         onclick="toggleSectorCollapse('기타')">
+      <button id="sector-btn-${encodeURIComponent('기타')}"
+        style="background:none; border:none; font-size:11px; color:var(--t3); cursor:pointer; padding:0; width:14px; flex-shrink:0;">
+        ${etcCollapsed ? '▶' : '▼'}
+      </button>
       <span style="font-size:12px; font-weight:600; color:var(--t2); white-space:nowrap;">기타</span>
+      <span style="font-size:11px; color:var(--t3);">${etcItems.length}종목</span>
       <div style="flex:1; height:1px; background:var(--br);"></div>
     </div>
-    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(148px, 1fr)); gap:6px;">
+    <div id="sector-grid-${encodeURIComponent('기타')}"
+         style="display:${etcCollapsed ? 'none' : 'grid'}; grid-template-columns:repeat(auto-fill, minmax(148px, 1fr)); gap:6px;">
       ${etcItems.map(([ticker, lp]) => makeCard(ticker, lp, watchlist)).join('')}
     </div>
   </div>`;
@@ -1711,7 +1758,7 @@ function renderTrend() {
     <div class="card">
       <div class="card-title">📊 투자 트렌드 — 오늘 기준</div>
       <div class="text-sm text-muted" style="margin-bottom:12px;">전체 ${totalStudents}명 학생들의 투자 현황</div>
-      <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:16px;">
+      <div style="display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-bottom:16px;">
         <div style="background:var(--p-soft); border-radius:10px; padding:12px; text-align:center;">
           <div style="font-size:11px; color:var(--p); font-weight:600; margin-bottom:4px;">오늘의 염탐자</div>
           <div style="font-size:22px; font-weight:700;">👁️ ${spyerCount}명</div>
@@ -1722,11 +1769,7 @@ function renderTrend() {
           <div style="font-size:22px; font-weight:700;">🔍 ${spiedCount}명</div>
           <div style="font-size:11px; color:var(--t3);">오늘 기준</div>
         </div>
-        <div style="background:#fef2f2; border-radius:10px; padding:12px; text-align:center;">
-          <div style="font-size:11px; color:#dc2626; font-weight:600; margin-bottom:4px;">염탐 비용 합계</div>
-          <div style="font-size:22px; font-weight:700;">💸 ${fmt.krw(spyCount * SPY_FEE)}</div>
-          <div style="font-size:11px; color:var(--t3);">오늘 소비</div>
-        </div>
+
       </div>
       ${topTodayBuy.length || topTodaySell.length ? `
         <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:20px;">
