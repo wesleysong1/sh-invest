@@ -1865,8 +1865,7 @@ function openStudentPortfolioModal(studentId, studentName) {
   const overlay = (!isMe && !revealed) ? `
     <div id="spy-overlay" style="
       position:absolute; inset:0; z-index:10; border-radius:8px;
-      backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);
-      background:rgba(248,250,252,0.55);
+      background:var(--sf);
       display:flex; flex-direction:column; align-items:center; justify-content:center; gap:10px;">
       <div style="font-size:13px; color:var(--t2); font-weight:600;">🔒 상세 포트폴리오를 보려면 <strong style="color:var(--p);">${fmt.krw(SPY_FEE)}</strong>이 필요해요</div>
       ${SESSION
@@ -1892,7 +1891,7 @@ function openStudentPortfolioModal(studentId, studentName) {
       <button class="modal-close" onclick="closeModal()">×</button>
     </div>
 
-    <div style="position:relative; border-radius:8px;">
+    <div style="position:relative; border-radius:8px; ${!isMe && !revealed ? 'height:200px; overflow:hidden;' : ''}">
       ${overlay}
       <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:14px;">
         <div style="background:var(--bg); padding:10px 12px; border-radius:8px;">
