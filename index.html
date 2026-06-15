@@ -784,7 +784,7 @@ function getPortfolio(studentId) {
   const items = [];
   Object.entries(holdings).forEach(([ticker, h]) => {
     if (h.qty <= 0) return;
-    if (ticker.startsWith('__')) return;  // 수수료 등 특수 거래 제외
+    if (ticker.startsWith('__') || ticker === '염탐비용' || ticker === '염탐수입') return;
     const lp = CACHE.livePrices[ticker];
     const price = lp?.price || 0;
     const value = h.qty * price;
@@ -1271,7 +1271,6 @@ function updateLimitPreview(ticker, action) {
   const port = getPortfolio(SESSION.studentId);
 
   let err = null;
-  const ss = getSessionStatus(ticker);
   const ss = getSessionStatus(ticker);
   if (!ss.open) err = ss.notUpdated ? '가격 업데이트가 되지 않았습니다.' : `거래 시간이 아닙니다 (${ss.label})`;
   else if (!targetPrice || targetPrice <= 0) err = '목표 가격을 입력해주세요';
@@ -1807,7 +1806,7 @@ function renderTrend() {
 
 // --- 순위표 탭 ---
 // 포트폴리오 열람 (DB 기반, 24시간 유효)
-const SPY_FEE = 30000;
+const SPY_FEE = 100000;
 const SPY_DURATION_MS = 24 * 60 * 60 * 1000;
 
 function isRevealed(studentId) {
@@ -1929,8 +1928,15 @@ function openStudentPortfolioModal(studentId, studentName) {
   document.getElementById('modal-content').style.maxWidth = '560px';
 }
 
-function confirmReveal(studentId, studentName) {
-  if (!confirm(`수수료 ${fmt.krw(SPY_FEE)}이 차감됩니다.\n그래도 염탐하시겠습니까?`)) return;
+async function confirmReveal(studentId, studentName) {
+  // 해당 학생을 염탐한 총 인원 조회
+  const { count } = await sb.from('portfolio_reveals')
+    .select('*', { count: 'exact', head: true })
+    .eq('target_id', studentId);
+
+  const spyCount = count || 0;
+  const msg = `👁️ 지금까지 ${studentName} 학생을 염탐한 학생: ${spyCount}명\n\n열람 비용 ${fmt.krw(SPY_FEE)}이 차감되고,\n${studentName} 학생에게 ${fmt.krw(SPY_FEE)}이 지급됩니다.\n\n그래도 염탐하시겠습니까?`;
+  if (!confirm(msg)) return;
   revealPortfolio(studentId, studentName);
 }
 
@@ -1942,19 +1948,20 @@ async function revealPortfolio(studentId, studentName) {
   if (btn) { btn.disabled = true; btn.textContent = '처리 중...'; }
 
   try {
-    const { error } = await sb.from('trades').insert({
-      student_id: SESSION.studentId,
-      ticker: '염탐비용',
-      action: 'buy',
-      qty: 1,
-      price: SPY_FEE,
-      amount: SPY_FEE,
-      market_session: 'regular',
-      created_at: new Date().toISOString(),
+    const { error } = await sb.rpc('pay_spy_fee', {
+      p_viewer_id: SESSION.studentId,
+      p_target_id: studentId,
+      p_fee: SPY_FEE,
     });
     if (error) throw error;
 
-    await saveReveal(studentId);
+    // saveReveal은 RPC에서 처리됨 - 캐시만 업데이트
+    if (!CACHE.reveals) CACHE.reveals = [];
+    const idx = CACHE.reveals.findIndex(r => r.target_id === studentId);
+    const entry = { viewer_id: SESSION.studentId, target_id: studentId, revealed_at: new Date().toISOString() };
+    if (idx >= 0) CACHE.reveals[idx] = entry;
+    else CACHE.reveals.push(entry);
+
     await loadAllData();
 
     document.getElementById('spy-overlay')?.remove();
