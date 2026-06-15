@@ -425,6 +425,12 @@ function getSessionStatus(ticker) {
   if (totalMin >= tradeEndMin) {
     return { open: false, label: `거래 마감 (${TRADE_END.h}:${String(TRADE_END.m).padStart(2,'0')} 종료)`, cls: 'session-closed' };
   }
+  // 오늘 가격 업데이트 여부 확인
+  const lp2 = ticker ? CACHE.livePrices[ticker] : null;
+  const todayKST2 = new Date(Date.now() + 9*60*60*1000).toISOString().slice(0,10);
+  if (lp2 && lp2.price_date !== todayKST2) {
+    return { open: false, label: '가격 업데이트 전', cls: 'session-pre', notUpdated: true };
+  }
   return { open: true, label: '거래 중', cls: 'session-open' };
 }
 
