@@ -1929,15 +1929,32 @@ function openStudentPortfolioModal(studentId, studentName) {
 }
 
 async function confirmReveal(studentId, studentName) {
-  // 해당 학생을 염탐한 총 인원 조회
   const { data: revealData } = await sb.from('portfolio_reveals')
-    .select('viewer_id')
-    .eq('target_id', studentId);
+    .select('viewer_id').eq('target_id', studentId);
   const spyCount = revealData?.length || 0;
 
-  const msg = `👁️ 지금까지 ${studentName} 학생을 염탐한 학생: ${spyCount}명\n\n열람 비용 ${fmt.krw(SPY_FEE)}이 차감되고,\n${studentName} 학생에게 ${fmt.krw(SPY_FEE)}이 지급됩니다.\n\n그래도 염탐하시겠습니까?`;
-  if (!confirm(msg)) return;
-  revealPortfolio(studentId, studentName);
+  showModal(`
+    <div class="modal-head">
+      <div class="modal-title">👁️ 염탐하기</div>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div style="padding:4px 0 16px;">
+      <div style="background:var(--bg); border-radius:10px; padding:14px; margin-bottom:14px;">
+        <div style="font-size:13px; color:var(--t2); margin-bottom:6px;">
+          지금까지 <strong>${studentName}</strong> 학생을 염탐한 학생
+        </div>
+        <div style="font-size:24px; font-weight:700;">👁️ ${spyCount}명</div>
+      </div>
+      <div style="font-size:13px; color:var(--t2); line-height:1.8;">
+        <div>💸 열람 비용 <strong style="color:var(--danger);">${fmt.krw(SPY_FEE)}</strong>이 차감됩니다.</div>
+        <div>🎁 ${studentName} 학생에게 <strong style="color:var(--success);">${fmt.krw(SPY_FEE)}</strong>이 지급됩니다.</div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn" onclick="closeModal()">취소</button>
+      <button class="btn btn-primary" onclick="closeModal(); revealPortfolio('${studentId}','${studentName}')">염탐하기</button>
+    </div>
+  `);
 }
 
 async function revealPortfolio(studentId, studentName) {
