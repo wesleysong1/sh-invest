@@ -399,20 +399,32 @@ function getSessionStatus(ticker) {
   if (dow === 0 || dow === 6) return { open: false, label: '주말 휴장', cls: 'session-closed' };
   const h = now.getHours(), m = now.getMinutes();
   const totalMin = h * 60 + m;
-  // NXT 지원 종목: 08:01~20:00 / NXT 미지원: 09:01~15:30
   const isNoNxt = ticker && (CACHE.livePrices[ticker]?.nxt === false || NO_NXT_TICKERS.has(ticker));
-  const tradeStartMin = isNoNxt ? 9 * 60 + 1  : TRADE_START.h * 60 + TRADE_START.m + 1;
-  const tradeEndMin   = isNoNxt ? 15 * 60 + 30 : TRADE_END.h   * 60 + TRADE_END.m;
 
+  if (isNoNxt) {
+    // NXT 미지원: 09:00~15:30 시간 범위 체크
+    const regularStart = 9 * 60, regularEnd = 15 * 60 + 30;
+    if (totalMin < regularStart)  return { open: false, label: '거래 전 (09:00 시작)', cls: 'session-pre' };
+    if (totalMin >= regularEnd)   return { open: false, label: 'NXT 미지원 (15:30 마감)', cls: 'session-closed' };
+    // 오늘 가격 업데이트 여부 확인
+    const lp = ticker ? CACHE.livePrices[ticker] : null;
+    const todayKST = new Date(Date.now() + 9*60*60*1000).toISOString().slice(0,10);
+    if (lp && lp.price_date !== todayKST) {
+      return { open: false, label: '가격 업데이트 전', cls: 'session-pre', notUpdated: true };
+    }
+    return { open: true, label: '거래 중', cls: 'session-open' };
+  }
+
+  // NXT 지원 종목: 08:01~20:00
+  const tradeStartMin = TRADE_START.h * 60 + TRADE_START.m + 1;
+  const tradeEndMin   = TRADE_END.h * 60 + TRADE_END.m;
   if (totalMin < tradeStartMin) {
-    const sh = Math.floor(tradeStartMin / 60), sm = tradeStartMin % 60;
+    const sh = Math.floor(tradeStartMin/60), sm = tradeStartMin%60;
     return { open: false, label: `거래 전 (${sh}:${String(sm).padStart(2,'0')} 시작)`, cls: 'session-pre' };
   }
   if (totalMin >= tradeEndMin) {
-    const eh = Math.floor(tradeEndMin / 60), em = tradeEndMin % 60;
-    return { open: false, label: isNoNxt ? 'NXT 미지원 (15:30 마감)' : `거래 마감 (${eh}:${String(em).padStart(2,'0')} 종료)`, cls: 'session-closed' };
+    return { open: false, label: `거래 마감 (${TRADE_END.h}:${String(TRADE_END.m).padStart(2,'0')} 종료)`, cls: 'session-closed' };
   }
-
   return { open: true, label: '거래 중', cls: 'session-open' };
 }
 
@@ -564,7 +576,7 @@ async function loadAllData() {
     const [studentsRes, tradesRes, pricesRes, ordersRes, inquiriesRes, revealsRes] = await Promise.all([
       sb.from('students_public').select('id,student_number,name,initial_cash,class_id,watchlist').limit(500),
       sb.from('trades').select('*').limit(10000),
-      sb.from('live_prices').select('ticker,name,sector,market,price,change_amt,change_pct,nxt,updated_at').limit(200),
+      sb.from('live_prices').select('ticker,name,sector,market,price,change_amt,change_pct,nxt,price_date,updated_at').limit(200),
       sb.from('pending_orders').select('*')
         .eq('student_id', SESSION.studentId).order('created_at', { ascending: false }).limit(200),
       sb.from('inquiries').select('*')
@@ -631,6 +643,7 @@ function subscribeRealtime() {
             sector: row.sector || CACHE.livePrices[row.ticker]?.sector || '',
             market: row.market || CACHE.livePrices[row.ticker]?.market || 'KOSPI',
             nxt: row.nxt !== false,
+            price_date: row.price_date || null,
             updated_at: row.updated_at,
           };
           CACHE.lastUpdated = new Date(row.updated_at);
@@ -1259,8 +1272,8 @@ function updateLimitPreview(ticker, action) {
 
   let err = null;
   const ss = getSessionStatus(ticker);
-  if (!ss.open) err = `거래 시간이 아닙니다 (${ss.label})`;
-  else if (!qty || qty <= 0) err = '수량은 1 이상이어야 합니다';
+  const ss = getSessionStatus(ticker);
+  if (!ss.open) err = ss.notUpdated ? '가격 업데이트가 되지 않았습니다.' : `거래 시간이 아닙니다 (${ss.label})`;
   else if (!targetPrice || targetPrice <= 0) err = '목표 가격을 입력해주세요';
   else if (action === 'buy' && targetPrice > price) err = `매수 희망가는 현재가(${fmt.num(price)}원) 이하여야 합니다`;
   else if (action === 'sell' && targetPrice < price) err = `매도 희망가는 현재가(${fmt.num(price)}원) 이상이어야 합니다`;
@@ -1312,7 +1325,7 @@ async function doLimitOrder(ticker, action) {
   if (!qty || qty <= 0) return toast('수량을 입력해주세요', 'danger');
   if (!targetPrice || targetPrice <= 0) return toast('목표 가격을 입력해주세요', 'danger');
   const s = getSessionStatus(ticker);
-  if (!s.open) return toast(`거래 시간이 아닙니다 (${s.label})`, 'danger');
+  if (!s.open) return toast(s.notUpdated ? '가격 업데이트가 되지 않았습니다.' : `거래 시간이 아닙니다 (${s.label})`, 'danger');
   if (action === 'buy' && targetPrice > price) return toast(`매수 희망가는 현재가(${fmt.num(price)}원) 이하여야 합니다`, 'danger');
   if (action === 'sell' && targetPrice < price) return toast(`매도 희망가는 현재가(${fmt.num(price)}원) 이상이어야 합니다`, 'danger');
   const tick = getTickSize(targetPrice);
@@ -2315,7 +2328,7 @@ async function init() {
 async function loadPublicData() {
   try {
     const [pricesRes, studentsRes, tradesRes] = await Promise.all([
-      sb.from('live_prices').select('ticker,name,sector,market,price,change_amt,change_pct,nxt,updated_at').limit(200),
+      sb.from('live_prices').select('ticker,name,sector,market,price,change_amt,change_pct,nxt,price_date,updated_at').limit(200),
       sb.from('students_public').select('id,student_number,name,initial_cash,class_id,watchlist').limit(500),
       sb.from('trades').select('*').limit(10000),
     ]);
@@ -2358,6 +2371,7 @@ function subscribePublicPrices() {
             sector: row.sector || CACHE.livePrices[row.ticker]?.sector || '',
             market: row.market || CACHE.livePrices[row.ticker]?.market || 'KOSPI',
             nxt: row.nxt !== false,
+            price_date: row.price_date || null,
             updated_at: row.updated_at,
           };
               }
