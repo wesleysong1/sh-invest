@@ -1330,7 +1330,21 @@ async function doLimitOrder(ticker, action) {
   if (!qty || qty <= 0) return toast('수량을 입력해주세요', 'danger');
   if (!targetPrice || targetPrice <= 0) return toast('목표 가격을 입력해주세요', 'danger');
   const s = getSessionStatus(ticker);
-  if (!s.open) return toast(s.notUpdated ? '가격 업데이트가 되지 않았습니다.' : `거래 시간이 아닙니다 (${s.label})`, 'danger');
+  if (!s.open) {
+    if (s.notUpdated) {
+      // DB에서 최신 price_date 재확인
+      const { data: fresh } = await sb.from('live_prices').select('price_date').eq('ticker', ticker).single();
+      const todayKST = new Date(Date.now() + 9*60*60*1000).toISOString().slice(0,10);
+      if (fresh?.price_date === todayKST) {
+        // 캐시 업데이트 후 진행
+        if (CACHE.livePrices[ticker]) CACHE.livePrices[ticker].price_date = fresh.price_date;
+      } else {
+        return toast('가격 업데이트가 되지 않았습니다.', 'danger');
+      }
+    } else {
+      return toast(`거래 시간이 아닙니다 (${s.label})`, 'danger');
+    }
+  }
   if (action === 'buy' && targetPrice > price) return toast(`매수 희망가는 현재가(${fmt.num(price)}원) 이하여야 합니다`, 'danger');
   if (action === 'sell' && targetPrice < price) return toast(`매도 희망가는 현재가(${fmt.num(price)}원) 이상이어야 합니다`, 'danger');
   const tick = getTickSize(targetPrice);
