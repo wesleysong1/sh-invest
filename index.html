@@ -403,20 +403,26 @@ function getSessionStatus(ticker) {
 
   if (isNoNxt) {
     // NXT 미지원: 09:00~15:30 시간 범위 체크
-    const regularStart = 9 * 60, regularEnd = 15 * 60 + 30;
+    const regularStart = 9 * 60 + 2, regularEnd = 15 * 60 + 30;
     if (totalMin < regularStart)  return { open: false, label: '거래 전 (09:00 시작)', cls: 'session-pre' };
     if (totalMin >= regularEnd)   return { open: false, label: 'NXT 미지원 (15:30 마감)', cls: 'session-closed' };
-    // 오늘 live 가격 업데이트 여부 확인 (price_date 기준)
+    // 오늘 09:02(~09:04) KST 이후 updated_at인지 확인
+    const LATE_ETF = new Set(['0193W0','0193L0','0193T0','0197X0']);
     const lp = ticker ? CACHE.livePrices[ticker] : null;
-    const todayKST = new Date(Date.now() + 9*60*60*1000).toISOString().slice(0,10);
-    if (lp && lp.price_date !== todayKST) {
-      return { open: false, label: '가격 업데이트 전', cls: 'session-pre', notUpdated: true };
+    if (lp?.updated_at) {
+      const nowMs = Date.now();
+      const midnightKST_UTC = nowMs + 9*3600000 - ((nowMs + 9*3600000) % 86400000) - 9*3600000;
+      const extraMin = LATE_ETF.has(ticker) ? 4 : 2; // 레버리지 ETF 9:04, 나머지 9:02
+      const sessionStartMs = midnightKST_UTC + 9*3600000 + extraMin*60000;
+      if (new Date(lp.updated_at).getTime() < sessionStartMs) {
+        return { open: false, label: '가격 업데이트 전', cls: 'session-pre', notUpdated: true };
+      }
     }
     return { open: true, label: '거래 중', cls: 'session-open' };
   }
 
   // NXT 지원 종목: 08:01~20:00
-  const tradeStartMin = TRADE_START.h * 60 + TRADE_START.m + 1;
+  const tradeStartMin = TRADE_START.h * 60 + TRADE_START.m + 2;
   const tradeEndMin   = TRADE_END.h * 60 + TRADE_END.m;
   if (totalMin < tradeStartMin) {
     const sh = Math.floor(tradeStartMin/60), sm = tradeStartMin%60;
@@ -425,11 +431,15 @@ function getSessionStatus(ticker) {
   if (totalMin >= tradeEndMin) {
     return { open: false, label: `거래 마감 (${TRADE_END.h}:${String(TRADE_END.m).padStart(2,'0')} 종료)`, cls: 'session-closed' };
   }
-  // 오늘 live 가격 업데이트 여부 확인 (price_date 기준)
+  // 오늘 08:02 KST 이후 updated_at인지 확인
   const lp2 = ticker ? CACHE.livePrices[ticker] : null;
-  const todayKST2 = new Date(Date.now() + 9*60*60*1000).toISOString().slice(0,10);
-  if (lp2 && lp2.price_date !== todayKST2) {
-    return { open: false, label: '가격 업데이트 전', cls: 'session-pre', notUpdated: true };
+  if (lp2?.updated_at) {
+    const nowMs2 = Date.now();
+    const midnightKST_UTC2 = nowMs2 + 9*3600000 - ((nowMs2 + 9*3600000) % 86400000) - 9*3600000;
+    const sessionStartMs2 = midnightKST_UTC2 + 8*3600000 + 2*60000; // 08:02 KST
+    if (new Date(lp2.updated_at).getTime() < sessionStartMs2) {
+      return { open: false, label: '가격 업데이트 전', cls: 'session-pre', notUpdated: true };
+    }
   }
   return { open: true, label: '거래 중', cls: 'session-open' };
 }
