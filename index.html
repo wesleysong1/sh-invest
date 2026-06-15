@@ -1806,7 +1806,7 @@ function renderTrend() {
 
 // --- 순위표 탭 ---
 // 포트폴리오 열람 (DB 기반, 24시간 유효)
-const SPY_FEE = 100000;
+const SPY_FEE = 50000;
 const SPY_DURATION_MS = 24 * 60 * 60 * 1000;
 
 function isRevealed(studentId) {
@@ -1928,11 +1928,8 @@ function openStudentPortfolioModal(studentId, studentName) {
   document.getElementById('modal-content').style.maxWidth = '560px';
 }
 
-async function confirmReveal(studentId, studentName) {
-  const { data: revealData } = await sb.from('portfolio_reveals')
-    .select('viewer_id').eq('target_id', studentId);
-  const spyCount = revealData?.length || 0;
-
+function confirmReveal(studentId, studentName) {
+  // 모달 먼저 즉시 표시
   showModal(`
     <div class="modal-head">
       <div class="modal-title">👁️ 염탐하기</div>
@@ -1943,7 +1940,7 @@ async function confirmReveal(studentId, studentName) {
         <div style="font-size:13px; color:var(--t2); margin-bottom:6px;">
           지금까지 <strong>${studentName}</strong> 학생을 염탐한 학생
         </div>
-        <div style="font-size:24px; font-weight:700;">👁️ ${spyCount}명</div>
+        <div id="spy-count-display" style="font-size:24px; font-weight:700;">👁️ ...</div>
       </div>
       <div style="font-size:13px; color:var(--t2); line-height:1.8;">
         <div>💸 열람 비용 <strong style="color:var(--danger);">${fmt.krw(SPY_FEE)}</strong>이 차감됩니다.</div>
@@ -1955,6 +1952,12 @@ async function confirmReveal(studentId, studentName) {
       <button class="btn btn-primary" onclick="closeModal(); revealPortfolio('${studentId}','${studentName}')">염탐하기</button>
     </div>
   `);
+  // 카운트 비동기 로드
+  sb.from('portfolio_reveals').select('viewer_id').eq('target_id', studentId)
+    .then(({ data }) => {
+      const el = document.getElementById('spy-count-display');
+      if (el) el.textContent = '👁️ ' + (data?.length || 0) + '명';
+    });
 }
 
 async function revealPortfolio(studentId, studentName) {
