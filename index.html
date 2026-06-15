@@ -316,13 +316,13 @@ const FEE_RATE = 0.00015;  // 매수/매도 각각 0.015%
 
 // KRX 호가 단위
 function getTickSize(price) {
-  if (price < 1000)    return 1;
-  if (price < 5000)    return 5;
-  if (price < 10000)   return 10;
-  if (price < 50000)   return 50;
-  if (price < 100000)  return 100;
-  if (price < 500000)  return 500;
-  return 1000;
+  if (price < 2000)    return 1;    // 2,000원 미만
+  if (price < 5000)    return 5;    // 2,000 ~ 5,000원 미만
+  if (price < 20000)   return 10;   // 5,000 ~ 20,000원 미만
+  if (price < 50000)   return 50;   // 20,000 ~ 50,000원 미만
+  if (price < 200000)  return 100;  // 50,000 ~ 200,000원 미만
+  if (price < 500000)  return 500;  // 200,000 ~ 500,000원 미만
+  return 1000;                       // 500,000원 이상
 }
 
 // 호가 단위로 반올림
