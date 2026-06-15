@@ -406,7 +406,7 @@ function getSessionStatus(ticker) {
     const regularStart = 9 * 60, regularEnd = 15 * 60 + 30;
     if (totalMin < regularStart)  return { open: false, label: '거래 전 (09:00 시작)', cls: 'session-pre' };
     if (totalMin >= regularEnd)   return { open: false, label: 'NXT 미지원 (15:30 마감)', cls: 'session-closed' };
-    // 오늘 가격 업데이트 여부 확인
+    // 오늘 live 가격 업데이트 여부 확인 (price_date 기준)
     const lp = ticker ? CACHE.livePrices[ticker] : null;
     const todayKST = new Date(Date.now() + 9*60*60*1000).toISOString().slice(0,10);
     if (lp && lp.price_date !== todayKST) {
@@ -425,7 +425,7 @@ function getSessionStatus(ticker) {
   if (totalMin >= tradeEndMin) {
     return { open: false, label: `거래 마감 (${TRADE_END.h}:${String(TRADE_END.m).padStart(2,'0')} 종료)`, cls: 'session-closed' };
   }
-  // 오늘 가격 업데이트 여부 확인
+  // 오늘 live 가격 업데이트 여부 확인 (price_date 기준)
   const lp2 = ticker ? CACHE.livePrices[ticker] : null;
   const todayKST2 = new Date(Date.now() + 9*60*60*1000).toISOString().slice(0,10);
   if (lp2 && lp2.price_date !== todayKST2) {
