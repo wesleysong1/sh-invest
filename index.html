@@ -1930,11 +1930,11 @@ function openStudentPortfolioModal(studentId, studentName) {
 
 async function confirmReveal(studentId, studentName) {
   // 해당 학생을 염탐한 총 인원 조회
-  const { count } = await sb.from('portfolio_reveals')
-    .select('*', { count: 'exact', head: true })
+  const { data: revealData } = await sb.from('portfolio_reveals')
+    .select('viewer_id')
     .eq('target_id', studentId);
+  const spyCount = revealData?.length || 0;
 
-  const spyCount = count || 0;
   const msg = `👁️ 지금까지 ${studentName} 학생을 염탐한 학생: ${spyCount}명\n\n열람 비용 ${fmt.krw(SPY_FEE)}이 차감되고,\n${studentName} 학생에게 ${fmt.krw(SPY_FEE)}이 지급됩니다.\n\n그래도 염탐하시겠습니까?`;
   if (!confirm(msg)) return;
   revealPortfolio(studentId, studentName);
