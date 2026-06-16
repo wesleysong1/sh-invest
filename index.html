@@ -736,6 +736,46 @@ function updateClock() {
 // =====================================================================
 // 포트폴리오 계산
 // =====================================================================
+function getRealizedPnL(studentId, limit = 5) {
+  const trades = (CACHE.trades || [])
+    .filter(t => t.student_id === studentId && t.ticker !== '염탐비용' && t.ticker !== '염탐수입')
+    .sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+
+  const holdings = {}; // ticker → { qty, totalCost }
+  const realized = [];
+
+  for (const t of trades) {
+    if (!holdings[t.ticker]) holdings[t.ticker] = { qty: 0, totalCost: 0 };
+    const h = holdings[t.ticker];
+    if (t.action === 'buy') {
+      const fee = Math.round(t.amount * 0.00015);
+      h.totalCost += t.amount + fee;
+      h.qty += t.qty;
+    } else if (t.action === 'sell' && h.qty > 0) {
+      const avgCost = h.totalCost / h.qty;
+      const sellFee = Math.round(t.amount * 0.00015);
+      const pnl = Math.round((t.price - avgCost) * t.qty - sellFee);
+      const lp = CACHE.livePrices[t.ticker];
+      realized.push({
+        ticker: t.ticker,
+        name: lp?.name || t.ticker,
+        qty: t.qty,
+        sellPrice: t.price,
+        avgCost: Math.round(avgCost),
+        pnl,
+        date: t.created_at,
+      });
+      // 보유 업데이트
+      h.totalCost -= avgCost * t.qty;
+      h.qty -= t.qty;
+      if (h.qty <= 0) { h.qty = 0; h.totalCost = 0; }
+    }
+  }
+
+  // 최근 N개 반환
+  return realized.slice(-limit).reverse();
+}
+
 function getPortfolio(studentId) {
   const student = CACHE.students.find(s => s.id === studentId);
   if (!student) return null;
@@ -1915,6 +1955,29 @@ function openStudentPortfolioModal(studentId, studentName) {
           <tbody>${holdingsRows}</tbody>
         </table>
       </div>
+      ${(() => {
+        const realized = getRealizedPnL(studentId, 5);
+        if (!realized.length) return '';
+        const rows = realized.map(r => {
+          const cls = r.pnl >= 0 ? 'text-success' : 'text-danger';
+          return `<tr>
+            <td><strong>${r.name}</strong></td>
+            <td class="num">${fmt.num(r.qty)}주</td>
+            <td class="num">${fmt.num(r.sellPrice)}원</td>
+            <td class="num font-bold ${cls}">${r.pnl >= 0 ? '+' : ''}${fmt.krw(r.pnl)}</td>
+          </tr>`;
+        }).join('');
+        return `<div style="margin-top:12px;">
+          <div style="font-size:12px; font-weight:600; color:var(--t2); margin-bottom:6px;">📋 최근 실현 손익</div>
+          <div class="table-wrap"><table>
+            <thead><tr>
+              <th>종목</th><th class="num">수량</th>
+              <th class="num">매도가</th><th class="num">실현손익</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table></div>
+        </div>`;
+      })()}
     </div>
 
     <div class="modal-actions" style="margin-top:12px;">
