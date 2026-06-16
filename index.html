@@ -1156,6 +1156,18 @@ function renderPortfolio() {
           plCell = `<span class="${cls} font-bold">${pl.gain>=0?'+':''}${fmt.krw(pl.gain)}</span>
             <br><span class="${cls} text-sm">${pctStr}</span>`;
         }
+        // 염탐비용 특수 처리
+        if (t.ticker === '염탐비용') {
+          return `<tr>
+            <td class="center text-sm">${fmt.datetime(dt)}</td>
+            <td><strong>👁️ 염탐하기</strong></td>
+            <td class="center"><span class="badge" style="background:#f3e8ff; color:#7c3aed;">수수료</span></td>
+            <td class="num">-</td>
+            <td class="num">-</td>
+            <td class="num text-danger">-${fmt.krw(t.amount)}</td>
+            <td class="num"><span class="text-muted">-</span></td>
+          </tr>`;
+        }
         return `<tr>
           <td class="center text-sm">${fmt.datetime(dt)}</td>
           <td><strong>${name}</strong></td>
@@ -1735,8 +1747,61 @@ async function doTrade(ticker, action) {
 }
 
 // --- 트렌드 탭 ---
+// 트렌드 결제 상태 (DB 기반, 24시간)
+function isTrendRevealed() {
+  if (!SESSION || !CACHE.reveals) return false;
+  // 트렌드 열람 = viewer_id === target_id (자기자신 기록)
+  const r = CACHE.reveals.find(r =>
+    r.viewer_id === SESSION.studentId && r.target_id === SESSION.studentId
+  );
+  if (!r) return false;
+  return Date.now() - new Date(r.revealed_at).getTime() < SPY_DURATION_MS;
+}
+
+async function unlockTrend() {
+  const myPort = getPortfolio(SESSION.studentId);
+  if (!myPort || myPort.cash < SPY_FEE) return toast('사용 가능한 현금이 부족합니다.', 'danger');
+  if (!confirm(`트렌드 열람 수수료 ${fmt.krw(SPY_FEE)}이 차감됩니다. 진행하시겠습니까?`)) return;
+  // 수수료 차감
+  const { error } = await sb.from('trades').insert({
+    student_id: SESSION.studentId, ticker: '염탐비용',
+    action: 'buy', qty: 1, price: SPY_FEE, amount: SPY_FEE,
+    market_session: 'regular', created_at: new Date().toISOString(),
+  });
+  if (error) return toast('처리 실패: ' + error.message, 'danger');
+  // 열람 기록 (target_id를 고정값 'trend-access'로 사용)
+  await sb.from('portfolio_reveals').upsert({
+    viewer_id: SESSION.studentId,
+    target_id: SESSION.studentId,
+    revealed_at: new Date().toISOString(),
+  }, { onConflict: 'viewer_id,target_id' });
+  if (!CACHE.reveals) CACHE.reveals = [];
+  const idx = CACHE.reveals.findIndex(r => r.viewer_id === SESSION.studentId && r.target_id === SESSION.studentId);
+  const entry = { viewer_id: SESSION.studentId, target_id: SESSION.studentId, revealed_at: new Date().toISOString() };
+  if (idx >= 0) CACHE.reveals[idx] = entry; else CACHE.reveals.push(entry);
+  await loadAllData();
+  renderTrend();
+  toast('트렌드 열람 완료', 'success');
+}
+
 function renderTrend() {
   const el = document.getElementById('trend-content');
+  if (SESSION && !isTrendRevealed()) {
+    const myPort = getPortfolio(SESSION.studentId);
+    const canAfford = myPort && myPort.cash >= SPY_FEE;
+    el.innerHTML = `<div class="card" style="text-align:center; padding:40px 20px;">
+      <div style="font-size:40px; margin-bottom:12px;">📊</div>
+      <div style="font-size:16px; font-weight:700; margin-bottom:8px;">트렌드 열람</div>
+      <div style="font-size:13px; color:var(--t2); margin-bottom:20px;">
+        다른 학생들의 투자 트렌드를 보려면<br>
+        <strong>${fmt.krw(SPY_FEE)}</strong>이 필요합니다.
+      </div>
+      <button class="btn btn-primary" onclick="unlockTrend()" ${!canAfford?'disabled':''} style="font-size:14px; padding:10px 24px;">
+        📊 트렌드 보기 (-${fmt.krw(SPY_FEE)})${!canAfford?' (현금 부족)':''}
+      </button>
+    </div>`;
+    return;
+  }
   const totalStudents = CACHE.students.length;
 
   // 보유 종목 집계
@@ -1848,7 +1913,10 @@ const SPY_DURATION_MS = 24 * 60 * 60 * 1000;
 
 function isRevealed(studentId) {
   if (!CACHE.reveals) return false;
-  const r = CACHE.reveals.find(r => r.target_id === studentId);
+  // viewer_id !== target_id 인 것만 (자기자신=트렌드 기록 제외)
+  const r = CACHE.reveals.find(r =>
+    r.target_id === studentId && r.viewer_id !== r.target_id
+  );
   if (!r) return false;
   return Date.now() - new Date(r.revealed_at).getTime() < SPY_DURATION_MS;
 }

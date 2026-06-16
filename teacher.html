@@ -907,6 +907,17 @@ function detectGhostSells() {
 
 async function cancelTrade(id, studentName, stockName) {
   if (!confirm(`${studentName} 학생의 ${stockName} 거래를 취소하시겠습니까?`)) return;
+  // 염탐비용 취소 시 portfolio_reveals도 함께 삭제
+  const trade = CACHE.trades.find(t => t.id === id);
+  if (trade?.ticker === '염탐비용') {
+    // viewer_id = trade.student_id, revealed_at 날짜 기준으로 삭제
+    const tradeDate = trade.created_at?.slice(0,10);
+    await sb.from('portfolio_reveals')
+      .delete()
+      .eq('viewer_id', trade.student_id)
+      .gte('revealed_at', tradeDate + 'T00:00:00')
+      .lte('revealed_at', tradeDate + 'T23:59:59');
+  }
   const { error } = await sb.from('trades').delete().eq('id', id);
   if (error) { toast('취소 실패: ' + error.message, 'danger'); return; }
   await loadAll();
