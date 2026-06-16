@@ -402,45 +402,17 @@ function getSessionStatus(ticker) {
   const isNoNxt = ticker && (CACHE.livePrices[ticker]?.nxt === false || NO_NXT_TICKERS.has(ticker));
 
   if (isNoNxt) {
-    // NXT 미지원: 09:00~15:30 시간 범위 체크
-    const regularStart = 9 * 60 + 2, regularEnd = 15 * 60 + 30;
-    if (totalMin < regularStart)  return { open: false, label: '거래 전 (09:00 시작)', cls: 'session-pre' };
-    if (totalMin >= regularEnd)   return { open: false, label: 'NXT 미지원 (15:30 마감)', cls: 'session-closed' };
-    // 오늘 09:02(~09:04) KST 이후 updated_at인지 확인
-    const LATE_ETF = new Set(['0193W0','0193L0','0193T0','0197X0']);
-    const lp = ticker ? CACHE.livePrices[ticker] : null;
-    if (lp?.updated_at) {
-      const nowMs = Date.now();
-      const midnightKST_UTC = nowMs + 9*3600000 - ((nowMs + 9*3600000) % 86400000) - 9*3600000;
-      const extraMin = LATE_ETF.has(ticker) ? 4 : 2; // 레버리지 ETF 9:04, 나머지 9:02
-      const sessionStartMs = midnightKST_UTC + 9*3600000 + extraMin*60000;
-      if (new Date(lp.updated_at).getTime() < sessionStartMs) {
-        return { open: false, label: '가격 업데이트 전', cls: 'session-pre', notUpdated: true };
-      }
-    }
+    // NXT 미지원: 09:02~15:29
+    if (totalMin < 9*60+2)    return { open: false, label: '거래 전 (09:02 시작)', cls: 'session-pre' };
+    if (totalMin >= 15*60+29) return { open: false, label: 'NXT 미지원 (15:29 마감)', cls: 'session-closed' };
     return { open: true, label: '거래 중', cls: 'session-open' };
   }
 
-  // NXT 지원 종목: 08:01~20:00
-  const tradeStartMin = TRADE_START.h * 60 + TRADE_START.m + 2;
-  const tradeEndMin   = TRADE_END.h * 60 + TRADE_END.m;
-  if (totalMin < tradeStartMin) {
-    const sh = Math.floor(tradeStartMin/60), sm = tradeStartMin%60;
-    return { open: false, label: `거래 전 (${sh}:${String(sm).padStart(2,'0')} 시작)`, cls: 'session-pre' };
-  }
-  if (totalMin >= tradeEndMin) {
-    return { open: false, label: `거래 마감 (${TRADE_END.h}:${String(TRADE_END.m).padStart(2,'0')} 종료)`, cls: 'session-closed' };
-  }
-  // 오늘 08:02 KST 이후 updated_at인지 확인
-  const lp2 = ticker ? CACHE.livePrices[ticker] : null;
-  if (lp2?.updated_at) {
-    const nowMs2 = Date.now();
-    const midnightKST_UTC2 = nowMs2 + 9*3600000 - ((nowMs2 + 9*3600000) % 86400000) - 9*3600000;
-    const sessionStartMs2 = midnightKST_UTC2 + 8*3600000 + 2*60000; // 08:02 KST
-    if (new Date(lp2.updated_at).getTime() < sessionStartMs2) {
-      return { open: false, label: '가격 업데이트 전', cls: 'session-pre', notUpdated: true };
-    }
-  }
+  // NXT 지원: 08:02~19:59 (단, 08:59~09:02 거래 불가)
+  if (totalMin < 8*60+2)    return { open: false, label: '거래 전 (08:02 시작)', cls: 'session-pre' };
+  if (totalMin >= 19*60+59) return { open: false, label: '거래 마감 (19:59 종료)', cls: 'session-closed' };
+  if (totalMin >= 8*60+59 && totalMin < 9*60+2)
+    return { open: false, label: '개장 준비 (09:02 재개)', cls: 'session-pre' };
   return { open: true, label: '거래 중', cls: 'session-open' };
 }
 
@@ -758,7 +730,7 @@ function updateClock() {
   document.getElementById('hdr-time').textContent = fmt.time(now);
   const s = getSessionStatus();
   document.getElementById('hdr-session').innerHTML =
-    `<span style="font-size:11px; color:var(--t3); margin-right:4px;">거래 시간: 평일 08:00~20:00</span><span class="session-badge ${s.cls}">${s.open ? '🟢' : '🔴'} ${s.label}</span>`;
+    `<span style="font-size:11px; color:var(--t3); margin-right:4px;">거래 시간: 평일 08:02~19:59</span><span class="session-badge ${s.cls}">${s.open ? '🟢' : '🔴'} ${s.label}</span>`;
 }
 
 // =====================================================================
@@ -1214,7 +1186,7 @@ function openChartModal(ticker) {
         <div style="font-size:12px; color:var(--t3); margin-top:2px; display:flex; flex-wrap:wrap; align-items:center; gap:4px;">
           ${lp.sector ? `<span style="background:var(--p-soft); color:var(--p); padding:1px 7px; border-radius:4px; font-weight:600;">${lp.sector}</span>` : ''}
           <span>${ticker} · ${lp.market||'KOSPI'}</span>
-          ${NO_NXT_TICKERS.has(ticker) ? `<span style="background:#f1f5f9; color:var(--t2); padding:1px 7px; border-radius:4px; font-size:11px; font-weight:500;">정규장 전용 · 09:00~15:30</span>` : ''}
+          ${NO_NXT_TICKERS.has(ticker) ? `<span style="background:#f1f5f9; color:var(--t2); padding:1px 7px; border-radius:4px; font-size:11px; font-weight:500;">09:02~15:29</span>` : ''}
         </div>
       </div>
       <button class="modal-close" onclick="closeModal()">×</button>
@@ -1461,7 +1433,7 @@ function renderTrade() {
   const bannerCls = s.open ? 'alert-info' : 'alert-warn';
   const bannerIcon = s.open ? '🟢' : '🔴';
   document.getElementById('trade-banner').innerHTML =
-    `<div class="alert ${bannerCls}">${bannerIcon} <strong>${s.label}</strong> · 거래 시간: 평일 ${TRADE_START.h}:${String(TRADE_START.m).padStart(2,'0')} ~ ${TRADE_END.h}:${String(TRADE_END.m).padStart(2,'0')}</div>`;
+    `<div class="alert ${bannerCls}">${bannerIcon} <strong>${s.label}</strong> · 거래 시간: 평일 ${NO_NXT_TICKERS.has(ticker) ? (['0193W0','0193L0','0193T0','0197X0'].includes(ticker) ? '09:04' : '09:02') : '08:02'}~${NO_NXT_TICKERS.has(ticker) ? '15:30' : '20:00'}</div>`;
 
   const port = getPortfolio(SESSION.studentId);
   if (!port) return;
@@ -1480,7 +1452,7 @@ function renderTrade() {
       const ts = getSessionStatus(ticker);
       const noTrade = !ts.open;
       return `<tr>
-        <td><strong>${lp.name}</strong>${noTrade && NO_NXT_TICKERS.has(ticker) ? ' <span class="text-muted text-sm">거래시간: 09:00~15:30</span>' : ''}</td>
+        <td><strong>${lp.name}</strong>${noTrade && NO_NXT_TICKERS.has(ticker) ? ' <span class="text-muted text-sm">거래시간: 09:02~15:29</span>' : ''}</td>
         <td class="num">${fmt.num(lp.price)}원</td>
         <td class="num ${pctCls}">${lp.change_pct > 0 ? '+' : ''}${Number(lp.change_pct).toFixed(2)}%</td>
         <td class="num">${held > 0 ? fmt.num(held)+'주' : '-'}</td>
