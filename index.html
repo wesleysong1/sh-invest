@@ -812,7 +812,7 @@ function getPortfolio(studentId) {
   const items = [];
   Object.entries(holdings).forEach(([ticker, h]) => {
     if (h.qty <= 0) return;
-    if (ticker.startsWith('__') || ticker === '염탐비용') return;
+    if (ticker.startsWith('__') || ticker === '염탐비용' || ticker === '염탐수입') return;
     const lp = CACHE.livePrices[ticker];
     const price = lp?.price || 0;
     const value = h.qty * price;
@@ -859,19 +859,48 @@ function getPortfolio(studentId) {
   const availableCash = cash - reservedCash;
   const totalValue = cash + stockValue;
   const initialCash = Number(student.initial_cash);
-  // 오늘 수익 = 보유 종목별 (전일대비 등락 × 수량) 합산
-  let todayGain = 0;
+  // 오늘 수익 계산
+  let todayUnrealized = 0;  // 보유 종목 가격 변동
   let yesterdayStockValue = 0;
   items.forEach(i => {
     const lp = CACHE.livePrices[i.ticker];
     if (lp) {
       const changeAmt = lp.change_amt || 0;
-      todayGain += changeAmt * i.qty;
+      todayUnrealized += changeAmt * i.qty;
       yesterdayStockValue += (lp.price - changeAmt) * i.qty;
     }
   });
-  // 어제 20시 추정 총자산 = 현금 + 어제 종가 기준 주식 평가액
-  const yesterdayTotal = cash + yesterdayStockValue;
+
+  // 오늘 실현 손익 계산 (오늘 매도 거래)
+  const todayStr = new Date(Date.now() + 9*3600000).toISOString().slice(0,10);
+  const myTodayTrades = (CACHE.trades || [])
+    .filter(t => t.student_id === studentId && t.ticker !== '염탐비용' && t.ticker !== '염탐수입' && !t.ticker.startsWith('__'))
+    .sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+
+  const tempH = {};
+  let todayRealized = 0;
+  for (const t of myTodayTrades) {
+    if (!tempH[t.ticker]) tempH[t.ticker] = { qty: 0, totalCost: 0 };
+    const th = tempH[t.ticker];
+    if (t.action === 'buy') {
+      th.totalCost += t.price * t.qty * (1 + FEE_RATE);
+      th.qty += t.qty;
+    } else if (t.action === 'sell' && th.qty > 0) {
+      const avgCost = th.totalCost / th.qty;
+      const sellNet = t.price * t.qty * (1 - FEE_RATE);
+      // 오늘 매도분만 실현 손익에 포함
+      if (t.created_at?.slice(0,10) === todayStr) {
+        todayRealized += sellNet - avgCost * t.qty;
+      }
+      th.totalCost -= avgCost * t.qty;
+      th.qty -= t.qty;
+      if (th.qty <= 0) { th.qty = 0; th.totalCost = 0; }
+    }
+  }
+
+  const todayGain = todayUnrealized + todayRealized;
+  // 어제 20시 추정 총자산
+  const yesterdayTotal = (cash + yesterdayStockValue) - todayRealized;
   const todayReturnPct = yesterdayTotal > 0 ? todayGain / yesterdayTotal : 0;
 
   return {
