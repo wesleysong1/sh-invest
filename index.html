@@ -861,11 +861,18 @@ function getPortfolio(studentId) {
   const initialCash = Number(student.initial_cash);
   // 오늘 수익 = 보유 종목별 (전일대비 등락 × 수량) 합산
   let todayGain = 0;
+  let yesterdayStockValue = 0;
   items.forEach(i => {
     const lp = CACHE.livePrices[i.ticker];
-    if (lp?.change_amt) todayGain += lp.change_amt * i.qty;
+    if (lp) {
+      const changeAmt = lp.change_amt || 0;
+      todayGain += changeAmt * i.qty;
+      yesterdayStockValue += (lp.price - changeAmt) * i.qty;
+    }
   });
-  const todayReturnPct = totalValue > 0 ? todayGain / totalValue : 0;
+  // 어제 20시 추정 총자산 = 현금 + 어제 종가 기준 주식 평가액
+  const yesterdayTotal = cash + yesterdayStockValue;
+  const todayReturnPct = yesterdayTotal > 0 ? todayGain / yesterdayTotal : 0;
 
   return {
     student,
@@ -2202,7 +2209,7 @@ function renderLeaderboard() {
       <td style="padding:8px 6px;"><strong><span style='cursor:pointer; text-decoration:underline; text-underline-offset:2px;' onclick="openStudentPortfolioModal('${p.student.id}','${p.student.name}')">${p.student.name}</span></strong></td>
       <td class="num font-bold" style="padding:8px 6px;">${fmt.krw(p.totalValue)}</td>
       <td class="num font-bold ${p.returnPct>=0?'text-success':'text-danger'}" style="padding:8px 6px;">${fmt.pct(p.returnPct*100)}</td>
-      <td class="num ${(p.todayReturnPct||0)>=0?'text-success':'text-danger'}" style="padding:8px 6px;">${p.todayGain?((p.todayReturnPct>=0?'+':'')+fmt.pct(p.todayReturnPct*100)):'0.00%'}</td>
+      <td class="num ${(p.todayReturnPct||0)>=0?'text-success':'text-danger'}" style="padding:8px 6px;">${fmt.pct((p.todayReturnPct||0)*100)}</td>
     </tr>`;
   }).join('');
 
@@ -2257,7 +2264,7 @@ function renderLeaderboard() {
       <td style="padding:8px 6px;"><strong><span style='cursor:pointer; text-decoration:underline; text-underline-offset:2px;' onclick="openStudentPortfolioModal('${p.student.id}','${p.student.name}')">${p.student.name}</span></strong></td>
       <td class="num font-bold" style="padding:8px 6px;">${fmt.krw(p.totalValue)}</td>
       <td class="num font-bold ${p.returnPct>=0?'text-success':'text-danger'}" style="padding:8px 6px;">${fmt.pct(p.returnPct*100)}</td>
-      <td class="num ${(p.todayReturnPct||0)>=0?'text-success':'text-danger'}" style="padding:8px 6px;">${p.todayGain?((p.todayReturnPct>=0?'+':'')+fmt.pct(p.todayReturnPct*100)):'0.00%'}</td>
+      <td class="num ${(p.todayReturnPct||0)>=0?'text-success':'text-danger'}" style="padding:8px 6px;">${fmt.pct((p.todayReturnPct||0)*100)}</td>
       <td class="center" style="padding:8px 6px;">${tickerCell}</td>
     </tr>`;
   }).join('');
