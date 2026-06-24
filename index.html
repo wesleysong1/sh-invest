@@ -1596,7 +1596,7 @@ function renderTrade() {
   const bannerCls = s.open ? 'alert-info' : 'alert-warn';
   const bannerIcon = s.open ? '🟢' : '🔴';
   document.getElementById('trade-banner').innerHTML =
-    `<div class="alert ${bannerCls}">${bannerIcon} <strong>${s.label}</strong> · 거래 시간: 평일 ${NO_NXT_TICKERS.has(ticker) ? (['0193W0','0193L0','0193T0','0197X0'].includes(ticker) ? '09:04' : '09:02') : '08:02'}~${NO_NXT_TICKERS.has(ticker) ? '15:30' : '20:00'}</div>`;
+    `<div class="alert ${bannerCls}">${bannerIcon} <strong>${s.label}</strong> · 거래 시간: 평일 08:02~19:59 / 09:02~15:29 (NXT 미지원)</div>`;
 
   const port = getPortfolio(SESSION.studentId);
   if (!port) return;
