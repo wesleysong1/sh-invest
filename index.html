@@ -1810,13 +1810,13 @@ function validateTrade(ticker, action, qty) {
     if (amt + fee > port.cash) return `현금 부족 (필요: ${fmt.krw(amt + fee)}, 보유: ${fmt.krw(port.cash)})`;
   } else {
     const held = port.items.find(i => i.ticker === ticker)?.qty || 0;
-    const held = port.items.find(i => i.ticker === ticker)?.qty || 0;
     if (held < qty) return `보유 수량 부족 (보유: ${fmt.num(held)}주)`;
     const availQty = getAvailableSellQty(ticker, SESSION.studentId);
     if (availQty < qty) {
       const nextTime = getNextAvailableTime(ticker, SESSION.studentId, qty);
       return `${fmt.num(qty - availQty)}주는 ${nextTime || HOLD_MINUTES+'분 뒤'}부터 매도 가능합니다`;
     }
+  }
   return null;
 }
 
