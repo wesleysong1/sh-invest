@@ -736,6 +736,62 @@ function updateClock() {
 // =====================================================================
 // 포트폴리오 계산
 // =====================================================================
+const HOLD_MINUTES = 5;
+
+function getAvailableSellQty(ticker, studentId) {
+  const now = Date.now();
+  const HOLD_MS = HOLD_MINUTES * 60 * 1000;
+  const trades = (CACHE.trades || [])
+    .filter(t => t.student_id === studentId && t.ticker === ticker)
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  const lots = [];
+  for (const t of trades) {
+    if (t.action === 'buy') {
+      lots.push({ qty: t.qty, time: new Date(t.created_at).getTime() });
+    } else if (t.action === 'sell') {
+      let rem = t.qty;
+      while (rem > 0 && lots.length > 0) {
+        if (lots[0].qty <= rem) { rem -= lots[0].qty; lots.shift(); }
+        else { lots[0].qty -= rem; rem = 0; }
+      }
+    }
+  }
+  let available = 0;
+  for (const lot of lots) {
+    if (now - lot.time >= HOLD_MS) available += lot.qty;
+  }
+  return available;
+}
+
+function getNextAvailableTime(ticker, studentId, neededQty) {
+  const HOLD_MS = HOLD_MINUTES * 60 * 1000;
+  const trades = (CACHE.trades || [])
+    .filter(t => t.student_id === studentId && t.ticker === ticker)
+    .sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  const lots = [];
+  for (const t of trades) {
+    if (t.action === 'buy') {
+      lots.push({ qty: t.qty, time: new Date(t.created_at).getTime() });
+    } else if (t.action === 'sell') {
+      let rem = t.qty;
+      while (rem > 0 && lots.length > 0) {
+        if (lots[0].qty <= rem) { rem -= lots[0].qty; lots.shift(); }
+        else { lots[0].qty -= rem; rem = 0; }
+      }
+    }
+  }
+  let accumulated = 0;
+  for (const lot of lots) {
+    accumulated += lot.qty;
+    if (accumulated >= neededQty) {
+      const availAt = lot.time + HOLD_MS;
+      const kst = new Date(availAt + 9*3600000);
+      return `${String(kst.getUTCHours()).padStart(2,'0')}:${String(kst.getUTCMinutes()).padStart(2,'0')}`;
+    }
+  }
+  return null;
+}
+
 function getRealizedPnL(studentId, limit = 5) {
   const trades = (CACHE.trades || [])
     .filter(t => t.student_id === studentId && t.ticker !== '염탐비용' && t.ticker !== '염탐수입')
@@ -1428,6 +1484,17 @@ async function doLimitOrder(ticker, action) {
   const tick = getTickSize(targetPrice);
   if (targetPrice % tick !== 0) return toast(`호가 단위(${fmt.num(tick)}원)에 맞는 가격을 입력해주세요`, 'danger');
 
+
+  if (action === 'sell') {
+    const port2 = getPortfolio(SESSION.studentId);
+    const held2 = port2?.items.find(i => i.ticker === ticker)?.qty || 0;
+    if (qty > held2) return toast(`보유 수량 부족 (${fmt.num(held2)}주 보유)`, 'danger');
+    const availQty2 = getAvailableSellQty(ticker, SESSION.studentId);
+    if (availQty2 < qty) {
+      const nextTime2 = getNextAvailableTime(ticker, SESSION.studentId, qty);
+      return toast(`${fmt.num(qty - availQty2)}주는 ${nextTime2 || HOLD_MINUTES+'분 뒤'}부터 매도 가능합니다`, 'danger');
+    }
+  }
   ORDER_LOCK = true;
   try {
     const { error } = await sb.from('pending_orders').insert({
@@ -1743,8 +1810,13 @@ function validateTrade(ticker, action, qty) {
     if (amt + fee > port.cash) return `현금 부족 (필요: ${fmt.krw(amt + fee)}, 보유: ${fmt.krw(port.cash)})`;
   } else {
     const held = port.items.find(i => i.ticker === ticker)?.qty || 0;
+    const held = port.items.find(i => i.ticker === ticker)?.qty || 0;
     if (held < qty) return `보유 수량 부족 (보유: ${fmt.num(held)}주)`;
-  }
+    const availQty = getAvailableSellQty(ticker, SESSION.studentId);
+    if (availQty < qty) {
+      const nextTime = getNextAvailableTime(ticker, SESSION.studentId, qty);
+      return `${fmt.num(qty - availQty)}주는 ${nextTime || HOLD_MINUTES+'분 뒤'}부터 매도 가능합니다`;
+    }
   return null;
 }
 
