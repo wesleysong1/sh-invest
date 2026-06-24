@@ -1792,16 +1792,7 @@ function validateTrade(ticker, action, qty) {
 
   // 1분 내 동일 종목 중복 거래 방지
   const now = Date.now();
-  const recentTrade = CACHE.trades
-    .filter(t => t.student_id === SESSION.studentId && t.ticker === ticker)
-    .sort((a,b) => new Date(b.created_at) - new Date(a.created_at))[0];
-  if (recentTrade) {
-    const elapsed = now - new Date(recentTrade.created_at).getTime();
-    if (elapsed < 60000) {
-      const remaining = Math.ceil((60000 - elapsed) / 1000);
-      return `1분 내 동일 종목 재거래 불가 (${remaining}초 후 가능)`;
-    }
-  }
+
 
   const port = getPortfolio(SESSION.studentId);
   if (action === 'buy') {
