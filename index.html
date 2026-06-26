@@ -1408,7 +1408,7 @@ function updateLimitPreview(ticker, action) {
   const qty = parseInt(document.getElementById('t-qty')?.value) || 0;
   const targetPrice = parseInt(document.getElementById('t-target-price')?.value) || price;
   const amt = qty * targetPrice;
-  const fee = Math.round(amt * FEE_RATE);
+  const fee = Math.round(amt * (action === 'sell' ? SELL_FEE_RATE : FEE_RATE));
   const port = getPortfolio(SESSION.studentId);
 
   let err = null;
@@ -1427,7 +1427,7 @@ function updateLimitPreview(ticker, action) {
   document.getElementById('t-preview').innerHTML = `
     <div>목표가 <strong>${fmt.num(targetPrice)}원</strong></div>
     <div>예상 금액 <strong>${fmt.krw(amt)}</strong></div>
-    <div>예상 수수료 <strong style="color:var(--warn);">${fmt.krw(fee)}</strong></div>
+    <div>${action==='buy' ? '매수 수수료 <span class="text-sm text-muted">(0.015%)</span>' : '매도 수수료 및 세금 <span class="text-sm text-muted">(0.365%)</span>'} <strong style="color:var(--warn);">${fmt.krw(fee)}</strong></div>
     ${err ? `<div style="margin-top:8px; color:var(--no); font-weight:600;">⚠ ${err}</div>` : ''}
   `;
 }
@@ -1773,7 +1773,7 @@ function updateTradePreview(ticker, action) {
   const netAmt = action === 'buy' ? amt + fee : amt - fee;
   document.getElementById('t-preview').innerHTML = `
     <div>거래 금액 <strong>${fmt.krw(amt)}</strong></div>
-    <div>수수료 (0.015%) <strong style="color:var(--warn);">${fmt.krw(fee)}</strong></div>
+    <div>${action==='buy' ? '매수 수수료 <span class="text-muted text-sm">(0.015%)</span>' : '매도 수수료 및 세금 <span class="text-muted text-sm">(0.365%)</span>'} <strong style="color:var(--warn);">${fmt.krw(fee)}</strong></div>
     <div style="border-top:1px solid var(--br); margin:4px 0; padding-top:4px;">
       실제 ${action==='buy'?'지출':'수령'} <strong>${fmt.krw(netAmt)}</strong>
     </div>
