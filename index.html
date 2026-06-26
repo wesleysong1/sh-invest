@@ -312,7 +312,8 @@ const TRADE_START = { h: 8, m: 0 };   // 08:00
 const TRADE_END   = { h: 20, m: 0 };  // 20:00 (NXT 포함)
 
 // 수수료율
-const FEE_RATE = 0.00015;  // 매수/매도 각각 0.015%
+const FEE_RATE = 0.00015;      // 매수 수수료 0.015%
+const SELL_FEE_RATE = 0.00365; // 매도 수수료(세금 포함) 0.365%
 
 // KRX 호가 단위
 function getTickSize(price) {
@@ -809,7 +810,7 @@ function getRealizedPnL(studentId, limit = 5) {
       h.qty += t.qty;
     } else if (t.action === 'sell' && h.qty > 0) {
       const avgCost = h.totalCost / h.qty;
-      const sellFee = Math.round(t.amount * 0.00015);
+      const sellFee = Math.round(t.amount * SELL_FEE_RATE);
       const pnl = Math.round((t.price - avgCost) * t.qty - sellFee);
       const lp = CACHE.livePrices[t.ticker];
       realized.push({
@@ -872,12 +873,12 @@ function getPortfolio(studentId) {
     const lp = CACHE.livePrices[ticker];
     const price = lp?.price || 0;
     const value = h.qty * price;
-    const sellFee_ = Math.round(value * FEE_RATE);
+    const sellFee_ = Math.round(value * SELL_FEE_RATE);
     stockValue += (value - sellFee_);
     const avgCost = h.totalCost / h.qty;       // 수수료 포함 (손익 계산용)
     const avgPure = h.totalPureAmt / h.qty;    // 수수료 제외 (표시용)
-    const sellFee = Math.round(value * FEE_RATE);
-    const netValue = value - sellFee;           // 매도 수수료 차감 예상 실현금액
+    const sellFee = Math.round(value * SELL_FEE_RATE);
+    const netValue = value - sellFee;           // 매도 수수료(세금 포함) 차감 예상 실현금액
     const gain = netValue - h.totalCost;  // 평가손익 = 평가금액 - 매도수수료(예정) - 총매입금액
     items.push({
       ticker, name: lp?.name || ticker,
@@ -943,7 +944,7 @@ function getPortfolio(studentId) {
       th.qty += t.qty;
     } else if (t.action === 'sell' && th.qty > 0) {
       const avgCost = th.totalCost / th.qty;
-      const sellNet = t.price * t.qty * (1 - FEE_RATE);
+      const sellNet = t.price * t.qty * (1 - SELL_FEE_RATE);
       // 오늘 매도분만 실현 손익에 포함
       if (t.created_at?.slice(0,10) === todayStr) {
         todayRealized += sellNet - avgCost * t.qty;
@@ -1185,7 +1186,7 @@ function renderPortfolio() {
   document.getElementById('portfolio-holdings').innerHTML = port.items.length === 0
     ? '<div class="empty">보유 종목이 없습니다</div>'
     : `<div style="display:flex; justify-content:flex-end; margin-bottom:6px;">
-        <span style="font-size:11px; color:var(--t3);">※ 평가손익은 평가금액에서 매수 및 매도 수수료(예정)를 포함한 금액입니다.</span>
+        <span style="font-size:11px; color:var(--t3);">※ 평가손익은 평가금액에서 매수 및 매도 수수료(세금 포함, 예정)를 포함한 금액입니다.</span>
       </div>
       <div class="table-wrap"><table id="holdings-table" style="border-collapse:collapse;">
       <thead>
@@ -1210,7 +1211,7 @@ function renderPortfolio() {
         const pctVal = (i.returnPct*100).toFixed(2);
         const pctStr = (i.returnPct>=0?'+':'') + pctVal + '%';
         const buyFee  = Math.round(i.totalPureAmt * FEE_RATE);
-        const sellFee = Math.round(i.currentPrice * i.qty * FEE_RATE);
+        const sellFee = Math.round(i.currentPrice * i.qty * SELL_FEE_RATE);
         const borderBot = 'border-bottom:none;';
         const borderSep = 'border-bottom:2px solid var(--br2);';
         const vline = 'border-right:1px solid var(--br);';
@@ -1768,7 +1769,7 @@ function updateTradePreview(ticker, action) {
   const held = port.items.find(i => i.ticker === ticker)?.qty || 0;
   const err = validateTrade(ticker, action, qty);
 
-  const fee = Math.round(amt * FEE_RATE);
+  const fee = action === 'buy' ? Math.round(amt * FEE_RATE) : Math.round(amt * SELL_FEE_RATE);
   const netAmt = action === 'buy' ? amt + fee : amt - fee;
   document.getElementById('t-preview').innerHTML = `
     <div>거래 금액 <strong>${fmt.krw(amt)}</strong></div>

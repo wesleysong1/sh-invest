@@ -324,6 +324,7 @@ input:checked + .toggle-slider:before { transform: translateX(22px); }
 const SUPABASE_URL = 'https://hvdeiwixkycjvhsunqah.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imh2ZGVpd2l4a3ljanZoc3VucWFoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA2MzA1NDksImV4cCI6MjA5NjIwNjU0OX0.3I520-Lk7AQ3UCX_i16qeKC5FeLFMHWPu8uYG-FLrFs';
 const FEE_RATE = 0.00015;
+const SELL_FEE_RATE = 0.00365;
 const TEACHER_SESSION_KEY = 'rt_teacher_session_v1';
 
 let sb = null;
@@ -932,18 +933,19 @@ function getPortfolio(studentId) {
   if (!student) return null;
   let cash = Number(student.initial_cash);
   const holdings = {};
-  CACHE.trades.filter(t=>t.student_id===studentId)
-    .sort((a,b)=>new Date(a.created_at)-new Date(b.created_at))
+  CACHE.trades
+    .filter(t => t.student_id === studentId && t.ticker !== '염탐비용' && t.ticker !== '염탐수입' && !t.ticker.startsWith('__'))
+    .sort((a,b) => new Date(a.created_at) - new Date(b.created_at))
     .forEach(t => {
       const amt = Number(t.amount);
-      const fee = Math.round(amt * FEE_RATE);
-      if (t.action==='buy') {
-        cash -= (amt+fee);
+      const fee = t.action === 'buy' ? Math.round(amt * FEE_RATE) : Math.round(amt * SELL_FEE_RATE);
+      if (t.action === 'buy') {
+        cash -= (amt + fee);
         if (!holdings[t.ticker]) holdings[t.ticker] = { qty:0, totalCost:0 };
         holdings[t.ticker].qty += t.qty;
-        holdings[t.ticker].totalCost += (amt+fee);
+        holdings[t.ticker].totalCost += (amt + fee);
       } else {
-        cash += (amt-fee);
+        cash += (amt - Math.round(amt * SELL_FEE_RATE));
         if (holdings[t.ticker]) {
           const avg = holdings[t.ticker].totalCost / holdings[t.ticker].qty;
           holdings[t.ticker].qty -= t.qty;
@@ -952,6 +954,17 @@ function getPortfolio(studentId) {
         }
       }
     });
+
+  // 염탐비용은 현금에서 별도 차감 (보유종목 제외)
+  CACHE.trades
+    .filter(t => t.student_id === studentId && (t.ticker === '염탐비용' || t.ticker === '염탐수입' || t.ticker.startsWith('__')))
+    .forEach(t => {
+      const amt = Number(t.amount);
+      const fee = t.action === 'buy' ? Math.round(amt * FEE_RATE) : Math.round(amt * SELL_FEE_RATE);
+      if (t.action === 'buy') cash -= (amt + fee);
+      else cash += (amt - fee);
+    });
+
   let stockValue = 0;
   const items = [];
   Object.entries(holdings).forEach(([ticker, h]) => {
@@ -971,12 +984,48 @@ function getPortfolio(studentId) {
     });
   });
   items.sort((a,b) => b.value - a.value);
+
+  // 오늘 수익 계산 (미실현 + 실현)
+  let todayUnrealized = 0, yesterdayStockValue = 0;
+  items.forEach(i => {
+    const lp = CACHE.livePrices[i.ticker];
+    if (lp) {
+      todayUnrealized += (lp.change_amt||0) * i.qty;
+      yesterdayStockValue += (lp.price - (lp.change_amt||0)) * i.qty;
+    }
+  });
+  const todayStr = new Date(Date.now() + 9*3600000).toISOString().slice(0,10);
+  const allTrades = CACHE.trades
+    .filter(t => t.student_id === studentId && t.ticker !== '염탐비용' && t.ticker !== '염탐수입' && !t.ticker.startsWith('__'))
+    .sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
+  const tempH = {};
+  let todayRealized = 0;
+  for (const t of allTrades) {
+    if (!tempH[t.ticker]) tempH[t.ticker] = { qty:0, totalCost:0 };
+    const th = tempH[t.ticker];
+    if (t.action === 'buy') {
+      th.totalCost += t.price * t.qty * (1 + FEE_RATE);
+      th.qty += t.qty;
+    } else if (t.action === 'sell' && th.qty > 0) {
+      const avgCost = th.totalCost / th.qty;
+      const sellNet = t.price * t.qty * (1 - SELL_FEE_RATE);
+      if (t.created_at?.slice(0,10) === todayStr) todayRealized += sellNet - avgCost * t.qty;
+      th.totalCost -= avgCost * t.qty;
+      th.qty -= t.qty;
+      if (th.qty <= 0) { th.qty = 0; th.totalCost = 0; }
+    }
+  }
+  const todayGain = todayUnrealized + todayRealized;
+  const yesterdayTotal = (cash + yesterdayStockValue) - todayRealized;
+  const todayReturnPct = yesterdayTotal > 0 ? todayGain / yesterdayTotal : 0;
+
   const totalValue = cash + stockValue;
   const initialCash = Number(student.initial_cash);
   return {
     student, cash, rawCash: cash, stockValue, totalValue, initialCash, items,
     gain: totalValue - initialCash,
     returnPct: initialCash > 0 ? (totalValue - initialCash) / initialCash : 0,
+    todayGain, todayReturnPct,
   };
 }
 
@@ -1084,6 +1133,7 @@ function renderRanking() {
       <td style="padding:8px 6px;"><strong><span style="cursor:pointer; text-decoration:underline; text-underline-offset:2px;" onclick="openStudentPortfolioModal('${p.student.id}','${p.student.name}')">${p.student.name}</span></strong></td>
       <td class="num font-bold" style="padding:8px 6px;">${fmt.krw(p.totalValue)}</td>
       <td class="num font-bold ${p.returnPct>=0?'text-success':'text-danger'}" style="padding:8px 6px;">${fmt.pct(p.returnPct*100)}</td>
+      <td class="num ${(p.todayReturnPct||0)>=0?'text-success':'text-danger'}" style="padding:8px 6px;">${fmt.pct((p.todayReturnPct||0)*100)}</td>
       <td class="center ${tickerCount<5?'text-danger font-bold':''}" style="padding:8px 6px;">${tickerCount}종목 ${tickerCount<5?'⚠️':''}</td>
     </tr>`;
   }).join('');
@@ -1092,12 +1142,12 @@ function renderRanking() {
     <td class="center" style="padding:8px 6px;"><span class="rank-num rank-other">—</span></td>
     <td style="padding:8px 6px;">${p.student.student_number}</td>
     <td style="padding:8px 6px;">${p.student.name}</td>
-    <td colspan="4" class="text-muted text-sm">미참여</td>
+    <td colspan="5" class="text-muted text-sm">미참여</td>
   </tr>`).join('');
 
   const thead = `<thead><tr style="white-space:nowrap; font-size:12px;">
     <th class="center">순위</th><th>학번</th><th>이름</th>
-    <th class="num">총자산</th><th class="num">수익률</th>
+    <th class="num">총자산</th><th class="num">누적 수익률</th><th class="num">오늘 수익률</th>
     <th class="center">종목수</th>
   </tr></thead>`;
 
