@@ -563,7 +563,7 @@ async function loadAllData() {
   if (!SESSION) return;
   try {
     const [studentsRes, tradesRes, pricesRes, ordersRes, inquiriesRes, revealsRes] = await Promise.all([
-      sb.from('students_public').select('id,student_number,name,initial_cash,class_id,watchlist').limit(500),
+      sb.from('students_public').select('id,student_number,name,initial_cash,class_id,watchlist,is_teacher').limit(500),
       sb.from('trades').select('*').limit(10000),
       sb.from('live_prices').select('ticker,name,sector,market,price,change_amt,change_pct,nxt,price_date,updated_at').limit(200),
       sb.from('pending_orders').select('*')
@@ -2241,7 +2241,7 @@ async function revealPortfolio(studentId, studentName) {
 
 
 function renderLeaderboard() {
-  const ports = CACHE.students.filter(s => s.name !== 'ssong0129').map(s => getPortfolio(s.id)).filter(Boolean);
+  const ports = CACHE.students.filter(s => s.name !== 'ssong0129' && !s.is_teacher).map(s => getPortfolio(s.id)).filter(Boolean);
 
   function hasActivity(port) {
     return CACHE.trades.some(t => t.student_id === port.student.id);
@@ -2592,7 +2592,7 @@ async function loadPublicData() {
   try {
     const [pricesRes, studentsRes, tradesRes] = await Promise.all([
       sb.from('live_prices').select('ticker,name,sector,market,price,change_amt,change_pct,nxt,price_date,updated_at').limit(200),
-      sb.from('students_public').select('id,student_number,name,initial_cash,class_id,watchlist').limit(500),
+      sb.from('students_public').select('id,student_number,name,initial_cash,class_id,watchlist,is_teacher').limit(500),
       sb.from('trades').select('*').limit(10000),
     ]);
     const newPrices2 = {};
