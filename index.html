@@ -1932,10 +1932,10 @@ function renderTrend() {
     </div>`;
     return;
   }
-  const totalStudents = CACHE.students.length;
+  const totalStudents = CACHE.students.filter(s=>s.name!=='ssong0129' && !s.is_teacher).length;
 
   // 보유 종목 집계
-  const adminIds = new Set(CACHE.students.filter(s=>s.name==='ssong0129').map(s=>s.id));
+  const adminIds = new Set(CACHE.students.filter(s=>s.name==='ssong0129' || s.is_teacher).map(s=>s.id));
   const holdingsMap = {};
   CACHE.trades
     .filter(t => !adminIds.has(t.student_id) && t.ticker !== '염탐비용')
@@ -1972,7 +1972,7 @@ function renderTrend() {
   });
 
   // 오늘의 염탐 통계
-  const spyTrades = CACHE.trades.filter(t => t.ticker === '염탐비용' && t.created_at?.slice(0,10) === todayStr);
+  const spyTrades = CACHE.trades.filter(t => t.ticker === '염탐비용' && t.created_at?.slice(0,10) === todayStr && !adminIds.has(t.student_id));
   const spyerCount = new Set(spyTrades.map(t => t.student_id)).size;
   const spyCount   = spyTrades.length;
   const spiedCount = new Set((CACHE.reveals||[]).filter(r => r.revealed_at?.slice(0,10) === todayStr).map(r => r.target_id)).size;

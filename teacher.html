@@ -448,11 +448,11 @@ function renderAll() {
 // =====================================================================
 async function renderSettings() {
   // 현황 요약
-  const totalStudents = CACHE.students.filter(s=>s.name!=='ssong0129').length;
-  const adminIds = new Set(CACHE.students.filter(s=>s.name==='ssong0129').map(s=>s.id));
+  const totalStudents = CACHE.students.filter(s=>s.name!=='ssong0129' && !s.is_teacher).length;
+  const adminIds = new Set(CACHE.students.filter(s=>s.name==='ssong0129' || s.is_teacher).map(s=>s.id));
   const activeStudents = new Set(CACHE.trades.filter(t=>!adminIds.has(t.student_id)).map(t=>t.student_id)).size;
-  const todayTrades = CACHE.trades.filter(t => t.created_at?.slice(0,10) === new Date().toISOString().slice(0,10)).length;
-  const totalTrades = CACHE.trades.length;
+  const todayTrades = CACHE.trades.filter(t => t.created_at?.slice(0,10) === new Date().toISOString().slice(0,10) && !adminIds.has(t.student_id) && t.ticker !== '염탐비용').length;
+  const totalTrades = CACHE.trades.filter(t => !adminIds.has(t.student_id) && t.ticker !== '염탐비용').length;
 
   document.getElementById('settings-stats').innerHTML = `
     <div class="stat-card"><div class="stat-label">전체 학생</div><div class="stat-value">${totalStudents}명</div></div>
@@ -462,7 +462,7 @@ async function renderSettings() {
   `;
 
   // 현황 요약 카드
-  const ports = CACHE.students.map(s => getPortfolio(s.id)).filter(Boolean);
+  const ports = CACHE.students.filter(s => s.name !== 'ssong0129' && !s.is_teacher).map(s => getPortfolio(s.id)).filter(Boolean);
   const activePorts = ports.filter(p => CACHE.trades.some(t=>t.student_id===p.student.id));
   const avgReturn = activePorts.length > 0
     ? activePorts.reduce((s,p) => s + p.returnPct, 0) / activePorts.length : 0;
@@ -1172,9 +1172,9 @@ function renderRanking() {
 // 트렌드
 // =====================================================================
 function renderTrend() {
-  const totalStudents = CACHE.students.filter(s=>s.name!=='ssong0129').length;
+  const totalStudents = CACHE.students.filter(s=>s.name!=='ssong0129' && !s.is_teacher).length;
   const holdingsMap = {};
-  const adminIds2 = new Set(CACHE.students.filter(s=>s.name==='ssong0129').map(s=>s.id));
+  const adminIds2 = new Set(CACHE.students.filter(s=>s.name==='ssong0129' || s.is_teacher).map(s=>s.id));
   CACHE.trades.filter(t=>!adminIds2.has(t.student_id) && t.ticker!=='염탐비용').sort((a,b)=>new Date(a.created_at)-new Date(b.created_at)).forEach(t => {
     if (!holdingsMap[t.student_id]) holdingsMap[t.student_id] = {};
     const h = holdingsMap[t.student_id];
