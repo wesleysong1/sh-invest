@@ -334,12 +334,7 @@ function roundToTick(price) {
 
 // NXT 미지원 종목 (08:00~09:00, 15:30~20:00 거래 불가)
 const NO_NXT_TICKERS = new Set([
-  '069500','252670','233740','251340','0193W0','0193L0','0193T0','0197X0', // ETF
-  '010170', // 대한광통신
-  '036930', // 주성엔지니어링
-  '440110', // 파두
-  '034220', // LG디스플레이
-  '405100', // 큐알티 (NXT 미지원)
+  // NXT 미지원 종목 모두 삭제됨 (전 종목 NXT 지원)
 ]);
 
 const SESSION_KEY = 'rt_invest_session_v1';
@@ -737,7 +732,20 @@ function updateClock() {
 // =====================================================================
 // 포트폴리오 계산
 // =====================================================================
-const HOLD_MINUTES = 5;
+const HOLD_MINUTES = 10;
+const MAX_DAILY_BUY = 5;   // 하루 최대 매수 횟수
+const MAX_DAILY_SELL = 5;  // 하루 최대 매도 횟수
+
+// 오늘 매수/매도 횟수 집계 (염탐비용 제외)
+function getTodayTradeCount(action) {
+  const todayStr = new Date(Date.now() + 9*3600000).toISOString().slice(0,10);
+  return (CACHE.trades || []).filter(t =>
+    t.student_id === SESSION.studentId &&
+    t.action === action &&
+    t.ticker !== '염탐비용' && t.ticker !== '염탐수입' && !t.ticker.startsWith('__') &&
+    t.created_at?.slice(0,10) === todayStr
+  ).length;
+}
 
 function getAvailableSellQty(ticker, studentId) {
   const now = Date.now();
@@ -1041,7 +1049,6 @@ const SECTOR_GROUPS = [
   { label: '에너지 · 소재', sectors: ['2차전지','원전','전력','철강','에너지'] },
   { label: '산업 · 인프라', sectors: ['조선','전기장비','전자','디스플레이'] },
   { label: '소비 · 서비스', sectors: ['유통','화장품','게임','로봇','통신','식품','항공'] },
-  { label: 'ETF', sectors: ['ETF'], order: ['069500','252670','233740','251340','0193W0','0193L0','0193T0','0197X0'] },
 ];
 
 // --- 시황 탭 ---
@@ -1485,6 +1492,14 @@ async function doLimitOrder(ticker, action) {
   const tick = getTickSize(targetPrice);
   if (targetPrice % tick !== 0) return toast(`호가 단위(${fmt.num(tick)}원)에 맞는 가격을 입력해주세요`, 'danger');
 
+  // 하루 거래 횟수 제한 (오늘 체결 + 대기 예약 합산)
+  const doneCount = getTodayTradeCount(action);
+  const pendingCount = (CACHE.orders || []).filter(o => o.action === action && o.status === 'pending').length;
+  const maxCount = action === 'buy' ? MAX_DAILY_BUY : MAX_DAILY_SELL;
+  if (doneCount + pendingCount >= maxCount) {
+    return toast(`오늘 ${action==='buy'?'매수':'매도'} 횟수 초과 (체결 ${doneCount}회 + 예약 ${pendingCount}회 / 최대 ${maxCount}회)`, 'danger');
+  }
+
 
   if (action === 'sell') {
     const port2 = getPortfolio(SESSION.studentId);
@@ -1596,8 +1611,11 @@ function renderTrade() {
   const s = getSessionStatus();
   const bannerCls = s.open ? 'alert-info' : 'alert-warn';
   const bannerIcon = s.open ? '🟢' : '🔴';
+  const buyLeft = Math.max(0, MAX_DAILY_BUY - getTodayTradeCount('buy'));
+  const sellLeft = Math.max(0, MAX_DAILY_SELL - getTodayTradeCount('sell'));
   document.getElementById('trade-banner').innerHTML =
-    `<div class="alert ${bannerCls}">${bannerIcon} <strong>${s.label}</strong> · 거래 시간: 평일 08:02~19:59 / 09:02~15:29 (NXT 미지원)</div>`;
+    `<div class="alert ${bannerCls}">${bannerIcon} <strong>${s.label}</strong> · 거래 시간: 평일 08:02~19:59</div>
+     <div class="alert alert-info" style="margin-top:6px;">📊 오늘 남은 거래 — 매수 <strong>${buyLeft}회</strong> · 매도 <strong>${sellLeft}회</strong> <span class="text-sm text-muted">(각 하루 ${MAX_DAILY_BUY}회 제한)</span></div>`;
 
   const port = getPortfolio(SESSION.studentId);
   if (!port) return;
@@ -1797,10 +1815,14 @@ function validateTrade(ticker, action, qty) {
 
   const port = getPortfolio(SESSION.studentId);
   if (action === 'buy') {
+    const buyCount = getTodayTradeCount('buy');
+    if (buyCount >= MAX_DAILY_BUY) return `오늘 매수 횟수를 모두 사용했습니다 (${MAX_DAILY_BUY}회 제한)`;
     const amt = qty * lp.price;
     const fee = Math.round(amt * FEE_RATE);
     if (amt + fee > port.cash) return `현금 부족 (필요: ${fmt.krw(amt + fee)}, 보유: ${fmt.krw(port.cash)})`;
   } else {
+    const sellCount = getTodayTradeCount('sell');
+    if (sellCount >= MAX_DAILY_SELL) return `오늘 매도 횟수를 모두 사용했습니다 (${MAX_DAILY_SELL}회 제한)`;
     const held = port.items.find(i => i.ticker === ticker)?.qty || 0;
     if (held < qty) return `보유 수량 부족 (보유: ${fmt.num(held)}주)`;
     const availQty = getAvailableSellQty(ticker, SESSION.studentId);
