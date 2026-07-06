@@ -701,18 +701,12 @@ function handleCSV(file) {
 
 async function uploadStudents(parsed) {
   try {
-    // class_id는 student_number 앞 두자리로 반 구분
-    const classMap = {
-      '31': '11111111-1111-1111-1111-111111111101',
-      '32': '11111111-1111-1111-1111-111111111102',
-      '33': '11111111-1111-1111-1111-111111111103',
-      '34': '11111111-1111-1111-1111-111111111104',
-      '35': '11111111-1111-1111-1111-111111111105',
-    };
+    // 모든 학생을 단일 기본 반에 등록 (반 구분 없음)
+    const DEFAULT_CLASS = '11111111-1111-1111-1111-111111111101';
     const inserts = parsed.map(p => ({
       student_number: p.student_number,
       name: p.name, pin: p.pin,
-      class_id: classMap[p.student_number.slice(0,2)] || classMap['31'],
+      class_id: DEFAULT_CLASS,
       initial_cash: 10000000,
     }));
     const { data, error } = await sb.rpc('upsert_students', { p_students: inserts });
