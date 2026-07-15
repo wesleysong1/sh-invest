@@ -703,7 +703,17 @@ async function uploadStudents(parsed) {
   try {
     // 모든 학생을 단일 기본 반에 등록 (반 구분 없음)
     const DEFAULT_CLASS = '11111111-1111-1111-1111-111111111101';
-    const inserts = parsed.map(p => ({
+
+    // 학번+이름 중복 제거 (뒤에 오는 것이 우선)
+    const seen = new Map();
+    for (const p of parsed) {
+      const key = `${p.student_number}__${p.name}`;
+      seen.set(key, p);
+    }
+    const deduped = [...seen.values()];
+    const dupCount = parsed.length - deduped.length;
+
+    const inserts = deduped.map(p => ({
       student_number: p.student_number,
       name: p.name, pin: p.pin,
       class_id: DEFAULT_CLASS,
@@ -713,7 +723,8 @@ async function uploadStudents(parsed) {
     if (error) throw error;
     await loadAll();
     document.getElementById('csv-preview').innerHTML = '';
-    toast(`${inserts.length}명 등록 완료`, 'success');
+    const dupMsg = dupCount > 0 ? ` (중복 ${dupCount}명 제외)` : '';
+    toast(`${inserts.length}명 등록 완료${dupMsg}`, 'success');
   } catch(e) { toast('등록 실패: ' + e.message, 'danger'); }
 }
 
