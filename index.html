@@ -921,52 +921,9 @@ function getPortfolio(studentId) {
     if (item) item.pendingSellQty = (item.pendingSellQty || 0) + o.qty;
   });
 
-  const availableCash = cash - reservedCash;
+  const availableCash = Math.max(0, cash - reservedCash);
   const totalValue = cash + stockValue;
   const initialCash = Number(student.initial_cash);
-  // 오늘 수익 계산
-  let todayUnrealized = 0;  // 보유 종목 가격 변동
-  let yesterdayStockValue = 0;
-  items.forEach(i => {
-    const lp = CACHE.livePrices[i.ticker];
-    if (lp) {
-      const changeAmt = lp.change_amt || 0;
-      todayUnrealized += changeAmt * i.qty;
-      yesterdayStockValue += (lp.price - changeAmt) * i.qty;
-    }
-  });
-
-  // 오늘 실현 손익 계산 (오늘 매도 거래)
-  const todayStr = new Date(Date.now() + 9*3600000).toISOString().slice(0,10);
-  const myTodayTrades = (CACHE.trades || [])
-    .filter(t => t.student_id === studentId && t.ticker !== '염탐비용' && t.ticker !== '염탐수입' && !t.ticker.startsWith('__'))
-    .sort((a,b) => new Date(a.created_at) - new Date(b.created_at));
-
-  const tempH = {};
-  let todayRealized = 0;
-  for (const t of myTodayTrades) {
-    if (!tempH[t.ticker]) tempH[t.ticker] = { qty: 0, totalCost: 0 };
-    const th = tempH[t.ticker];
-    if (t.action === 'buy') {
-      th.totalCost += t.price * t.qty * (1 + FEE_RATE);
-      th.qty += t.qty;
-    } else if (t.action === 'sell' && th.qty > 0) {
-      const avgCost = th.totalCost / th.qty;
-      const sellNet = t.price * t.qty * (1 - SELL_FEE_RATE);
-      // 오늘 매도분만 실현 손익에 포함
-      if (t.created_at?.slice(0,10) === todayStr) {
-        todayRealized += sellNet - avgCost * t.qty;
-      }
-      th.totalCost -= avgCost * t.qty;
-      th.qty -= t.qty;
-      if (th.qty <= 0) { th.qty = 0; th.totalCost = 0; }
-    }
-  }
-
-  const todayGain = todayUnrealized + todayRealized;
-  // 어제 20시 추정 총자산
-  const yesterdayTotal = (cash + yesterdayStockValue) - todayRealized;
-  const todayReturnPct = yesterdayTotal > 0 ? todayGain / yesterdayTotal : 0;
 
   return {
     student,
@@ -976,7 +933,6 @@ function getPortfolio(studentId) {
     stockValue, totalValue, initialCash, items,
     gain: totalValue - initialCash,
     returnPct: initialCash > 0 ? (totalValue - initialCash) / initialCash : 0,
-    todayGain, todayReturnPct,
   };
 }
 
@@ -1425,7 +1381,7 @@ function updateLimitPreview(ticker, action) {
   else if (action === 'buy' && targetPrice > price) err = `매수 희망가는 현재가(${fmt.num(price)}원) 이하여야 합니다`;
   else if (action === 'sell' && targetPrice < price) err = `매도 희망가는 현재가(${fmt.num(price)}원) 이상이어야 합니다`;
   else if (targetPrice % getTickSize(targetPrice) !== 0) err = `호가 단위(${fmt.num(getTickSize(targetPrice))}원)에 맞는 가격을 입력해주세요`;
-  else if (action === 'buy' && (amt + fee) > port.cash) err = `현금 부족 (필요: ${fmt.krw(amt+fee)}, 보유: ${fmt.krw(port.cash)})`;
+  else if (action === 'buy' && (amt + fee) > port.cash) err = `사용 가능한 현금이 부족합니다 (필요: ${fmt.krw(amt+fee)}, 사용 가능: ${fmt.krw(port.cash)})`;
   else if (action === 'sell') {
     const held = port.items.find(i => i.ticker === ticker)?.qty || 0;
     if (held < qty) err = `보유 수량 부족 (보유: ${fmt.num(held)}주)`;
@@ -1509,6 +1465,16 @@ async function doLimitOrder(ticker, action) {
     if (availQty2 < qty) {
       const nextTime2 = getNextAvailableTime(ticker, SESSION.studentId, qty);
       return toast(`${fmt.num(qty - availQty2)}주는 ${nextTime2 || HOLD_MINUTES+'분 뒤'}부터 매도 가능합니다`, 'danger');
+    }
+  }
+
+  if (action === 'buy') {
+    const port3 = getPortfolio(SESSION.studentId);
+    const orderAmt = targetPrice * qty;
+    const orderTotal = orderAmt + Math.round(orderAmt * FEE_RATE);
+    // port3.cash는 이미 기존 예약금이 차감된 사용 가능 현금
+    if (orderTotal > port3.cash) {
+      return toast(`사용 가능한 현금이 부족합니다 (필요: ${fmt.krw(orderTotal)}, 사용 가능: ${fmt.krw(port3.cash)})`, 'danger');
     }
   }
   ORDER_LOCK = true;
@@ -1914,8 +1880,24 @@ async function unlockTrend() {
   toast('트렌드 열람 완료', 'success');
 }
 
+// 순위/트렌드 열람 가능 시간 (08:00~20:00)
+function isViewingHours() {
+  const now = nowKST();
+  const totalMin = now.getHours() * 60 + now.getMinutes();
+  return totalMin >= 8*60 && totalMin < 20*60;
+}
+
+function viewingClosedHTML(label) {
+  return `<div class="card" style="text-align:center; padding:40px 20px;">
+    <div style="font-size:40px; margin-bottom:12px;">🔒</div>
+    <div style="font-size:16px; font-weight:700; margin-bottom:8px;">${label} 열람 시간이 아닙니다</div>
+    <div style="font-size:13px; color:var(--t2);">매일 <strong>08:00 ~ 20:00</strong> 에만 확인할 수 있어요.</div>
+  </div>`;
+}
+
 function renderTrend() {
   const el = document.getElementById('trend-content');
+  if (SESSION && !isViewingHours()) { el.innerHTML = viewingClosedHTML('트렌드'); return; }
   if (SESSION && !isTrendRevealed()) {
     const myPort = getPortfolio(SESSION.studentId);
     const canAfford = myPort && myPort.cash >= SPY_FEE;
@@ -2305,7 +2287,7 @@ function renderLeaderboard() {
 
   const thead = `<thead><tr style="white-space:nowrap; font-size:12px;">
     <th class="center">순위</th><th>학번</th><th>이름</th>
-    <th class="num">총자산</th><th class="num">누적 수익률</th><th class="num">오늘 수익률</th>
+    <th class="num">총자산</th><th class="num">수익률</th>
   </tr></thead>`;
 
   const renderRows = (ps, rs) => ps.map((p,i) => {
@@ -2324,7 +2306,6 @@ function renderLeaderboard() {
       <td style="padding:8px 6px;"><strong><span style='cursor:pointer; text-decoration:underline; text-underline-offset:2px;' onclick="openStudentPortfolioModal('${p.student.id}','${p.student.name}')">${p.student.name}</span></strong></td>
       <td class="num font-bold" style="padding:8px 6px;">${fmt.krw(p.totalValue)}</td>
       <td class="num font-bold ${p.returnPct>=0?'text-success':'text-danger'}" style="padding:8px 6px;">${fmt.pct(p.returnPct*100)}</td>
-      <td class="num ${(p.todayReturnPct||0)>=0?'text-success':'text-danger'}" style="padding:8px 6px;">${fmt.pct((p.todayReturnPct||0)*100)}</td>
     </tr>`;
   }).join('');
 
@@ -2345,7 +2326,7 @@ function renderLeaderboard() {
 
   const thead2 = `<thead><tr style="white-space:nowrap; font-size:12px;">
     <th class="center">순위</th><th>학번</th><th>이름</th>
-    <th class="num">총자산</th><th class="num">누적 수익률</th><th class="num">오늘 수익률</th>
+    <th class="num">총자산</th><th class="num">수익률</th>
     <th class="center">종목수</th>
   </tr></thead>`;
 
@@ -2379,7 +2360,6 @@ function renderLeaderboard() {
       <td style="padding:8px 6px;"><strong><span style='cursor:pointer; text-decoration:underline; text-underline-offset:2px;' onclick="openStudentPortfolioModal('${p.student.id}','${p.student.name}')">${p.student.name}</span></strong></td>
       <td class="num font-bold" style="padding:8px 6px;">${fmt.krw(p.totalValue)}</td>
       <td class="num font-bold ${p.returnPct>=0?'text-success':'text-danger'}" style="padding:8px 6px;">${fmt.pct(p.returnPct*100)}</td>
-      <td class="num ${(p.todayReturnPct||0)>=0?'text-success':'text-danger'}" style="padding:8px 6px;">${fmt.pct((p.todayReturnPct||0)*100)}</td>
       <td class="center" style="padding:8px 6px;">${tickerCell}</td>
     </tr>`;
   }).join('');
