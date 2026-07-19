@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'shinheung-invest-v3';
+const CACHE_VERSION = 'shinheung-invest-v4';
 const STATIC_ASSETS = [
   './index.html',
   './teacher.html',
