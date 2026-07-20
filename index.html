@@ -2640,7 +2640,7 @@ function subscribePublicPrices() {
             updated_at: row.updated_at,
           };
               }
-        if (CURRENT_TAB === 'market') { renderMarket(); flashPriceCell(row?.ticker); }
+        if (CURRENT_TAB === 'market') { updateSingleCard(row?.ticker); }
         else if (CURRENT_TAB === 'portfolio') renderPortfolio();
         else if (CURRENT_TAB === 'leaderboard') renderLeaderboard();
       })
