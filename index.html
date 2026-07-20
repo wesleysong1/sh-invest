@@ -2435,28 +2435,23 @@ function renderInquiry() {
       <div class="card-title">내 문의 내역 <span>${inquiries.length}건</span></div>
       ${inquiries.length === 0
         ? '<div class="empty">아직 문의 내역이 없습니다</div>'
-        : `<div class="table-wrap"><table>
-          <thead><tr>
-            <th class="center">상태</th>
-            <th>제목</th>
-            <th>내용</th>
-            <th class="center">등록일시</th>
-            <th class="center">관리</th>
-          </tr></thead>
-          <tbody>${inquiries.map(q => `<tr>
-            <td class="center">
-              <span class="badge ${q.is_confirmed ? 'badge-on' : 'badge-off'}">
-                ${q.is_confirmed ? '✅ 확인됨' : '⏳ 검토중'}
-              </span>
-            </td>
-            <td><strong>${q.title}</strong></td>
-            <td class="text-sm text-muted">${q.content.length > 30 ? q.content.slice(0,30)+'...' : q.content}</td>
-            <td class="center text-sm">${new Date(q.created_at).toLocaleString('ko-KR')}</td>
-            <td class="center">${!q.is_confirmed
-              ? `<button class="btn btn-sm btn-danger" onclick="cancelInquiry('${q.id}')">취소</button>`
-              : ''}</td>
-          </tr>`).join('')}</tbody>
-        </table></div>`}
+        : inquiries.map(q => {
+            const replied = !!q.reply;
+            return `<div style="border:1px solid var(--br); border-radius:10px; padding:14px; margin-bottom:12px;">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; gap:6px; flex-wrap:wrap;">
+                <span class="badge ${replied ? 'badge-on' : 'badge-off'}">${replied ? '💬 답변완료' : '⏳ 검토중'}</span>
+                <span class="text-sm text-muted">${new Date(q.created_at).toLocaleString('ko-KR')}</span>
+              </div>
+              <div style="font-weight:600; margin-bottom:4px;">${q.title}</div>
+              <div class="text-sm" style="white-space:pre-wrap; color:var(--t2); background:var(--bg); padding:10px; border-radius:8px;">${q.content}</div>
+              ${replied ? `
+                <div style="background:var(--p-soft); padding:10px; border-radius:8px; margin-top:8px;">
+                  <div style="font-size:11px; font-weight:600; color:var(--p); margin-bottom:4px;">👨‍🏫 선생님 답변 <span class="text-muted" style="font-weight:400;">${q.replied_at ? new Date(q.replied_at).toLocaleString('ko-KR') : ''}</span></div>
+                  <div class="text-sm" style="white-space:pre-wrap;">${q.reply}</div>
+                </div>` : ''}
+              ${!replied ? `<div style="margin-top:8px; text-align:right;"><button class="btn btn-sm btn-danger" onclick="cancelInquiry('${q.id}')">취소</button></div>` : ''}
+            </div>`;
+          }).join('')}
     </div>`;
 }
 
