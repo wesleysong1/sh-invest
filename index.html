@@ -220,7 +220,7 @@ td.center, th.center { text-align: center; }
       </div>
       <div class="header-user" id="header-user-area">
         <span id="hdr-name"></span>
-        <button class="btn btn-sm" id="btn-admin" onclick="window.location.href='teacher.html'" style="display:none;">📋 관리자</button>
+        <button class="btn btn-sm" id="btn-admin" onclick="goToAdmin()" style="display:none;">📋 관리자</button>
         <button class="btn btn-sm" id="btn-refresh" onclick="location.reload(true)" title="앱 새로고침" style="padding:6px 8px;">🔄</button>
         <button class="btn btn-sm btn-primary" id="btn-login" onclick="openLoginModal()" style="display:none;">로그인</button>
         <button class="btn btn-sm" id="btn-logout" onclick="doLogout()" style="display:none;">로그아웃</button>
@@ -532,13 +532,22 @@ function doLogout() {
   renderAll();
 }
 
+function goToAdmin() {
+  localStorage.setItem('rt_teacher_session_v1', '1');
+  location.href = 'teacher.html';
+}
+
 function updateHeaderAuth() {
   const loggedIn = !!SESSION;
   document.getElementById('btn-login').style.display   = loggedIn ? 'none'        : 'inline-flex';
   document.getElementById('btn-logout').style.display  = loggedIn ? 'inline-flex' : 'none';
   document.getElementById('hdr-name').textContent      = loggedIn ? SESSION.studentName + ' 학생' : '';
-  // ssong0129 계정으로 로그인했을 때만 관리자 버튼 표시
-  const isTeacher = loggedIn && SESSION.studentName === 'ssong0129';
+  // ssong0129 또는 송우현(0000) 계정으로 로그인했을 때 관리자 버튼 표시
+  const isAdminAccount = loggedIn && (
+    SESSION.studentName === 'ssong0129' ||
+    (SESSION.studentNumber === '0000' && SESSION.studentName === '송우현')
+  );
+  const isTeacher = isAdminAccount;
   const btnAdmin = document.getElementById('btn-admin');
   if (btnAdmin) btnAdmin.style.display = isTeacher ? 'inline-flex' : 'none';
 }
