@@ -451,7 +451,8 @@ async function renderSettings() {
   const totalStudents = CACHE.students.filter(s=>s.name!=='ssong0129' && !s.is_teacher).length;
   const adminIds = new Set(CACHE.students.filter(s=>s.name==='ssong0129' || s.is_teacher).map(s=>s.id));
   const activeStudents = new Set(CACHE.trades.filter(t=>!adminIds.has(t.student_id)).map(t=>t.student_id)).size;
-  const todayTrades = CACHE.trades.filter(t => t.created_at?.slice(0,10) === new Date().toISOString().slice(0,10) && !adminIds.has(t.student_id) && t.ticker !== '염탐비용').length;
+  const todayKST = new Date(Date.now() + 9*3600000).toISOString().slice(0,10);
+  const todayTrades = CACHE.trades.filter(t => t.created_at && new Date(new Date(t.created_at).getTime() + 9*3600000).toISOString().slice(0,10) === todayKST && !adminIds.has(t.student_id) && t.ticker !== '염탐비용').length;
   const totalTrades = CACHE.trades.filter(t => !adminIds.has(t.student_id) && t.ticker !== '염탐비용').length;
 
   document.getElementById('settings-stats').innerHTML = `
@@ -1160,10 +1161,13 @@ function renderTrend() {
   const holdersCount = {};
   Object.values(holdingsMap).forEach(h => Object.keys(h).forEach(t => { holdersCount[t]=(holdersCount[t]||0)+1; }));
 
-  const todayStr = new Date().toISOString().slice(0,10);
+  const todayStr = new Date(Date.now() + 9*3600000).toISOString().slice(0,10);
   const todayBuy={}, todaySell={};
   CACHE.trades.forEach(t => {
-    if (t.created_at?.slice(0,10)!==todayStr) return;
+    if (!t.created_at) return;
+    const tradeKST = new Date(new Date(t.created_at).getTime() + 9*3600000).toISOString().slice(0,10);
+    if (tradeKST !== todayStr) return;
+    if (t.ticker === '염탐비용' || t.ticker === '염탐수입') return;
     if (t.action==='buy') { if(!todayBuy[t.ticker])todayBuy[t.ticker]=new Set(); todayBuy[t.ticker].add(t.student_id); }
     else { if(!todaySell[t.ticker])todaySell[t.ticker]=new Set(); todaySell[t.ticker].add(t.student_id); }
   });

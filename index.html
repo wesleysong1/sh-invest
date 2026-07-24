@@ -1947,12 +1947,14 @@ function renderTrend() {
     Object.keys(h).forEach(t => { holdersCount[t] = (holdersCount[t]||0) + 1; });
   });
 
-  // 오늘 거래 집계 (염탐비용 제외)
-  const todayStr = new Date().toISOString().slice(0,10);
+  // 오늘 거래 집계 (염탐비용 제외, KST 기준)
+  const todayStr = new Date(Date.now() + 9*3600000).toISOString().slice(0,10);
   const todayBuy = {}, todaySell = {};
   CACHE.trades.forEach(t => {
-    if (t.created_at?.slice(0,10) !== todayStr) return;
-    if (t.ticker === '염탐비용') return;
+    if (!t.created_at) return;
+    const tradeKST = new Date(new Date(t.created_at).getTime() + 9*3600000).toISOString().slice(0,10);
+    if (tradeKST !== todayStr) return;
+    if (t.ticker === '염탐비용' || t.ticker === '염탐수입') return;
     if (t.action==='buy') {
       if (!todayBuy[t.ticker]) todayBuy[t.ticker] = new Set();
       todayBuy[t.ticker].add(t.student_id);
@@ -1963,10 +1965,10 @@ function renderTrend() {
   });
 
   // 오늘의 염탐 통계
-  const spyTrades = CACHE.trades.filter(t => t.ticker === '염탐비용' && t.created_at?.slice(0,10) === todayStr && !adminIds.has(t.student_id));
+  const spyTrades = CACHE.trades.filter(t => t.ticker === '염탐비용' && new Date(new Date(t.created_at).getTime() + 9*3600000).toISOString().slice(0,10) === todayStr && !adminIds.has(t.student_id));
   const spyerCount = new Set(spyTrades.map(t => t.student_id)).size;
   const spyCount   = spyTrades.length;
-  const spiedCount = new Set((CACHE.reveals||[]).filter(r => r.revealed_at?.slice(0,10) === todayStr).map(r => r.target_id)).size;
+  const spiedCount = new Set((CACHE.reveals||[]).filter(r => r.revealed_at && new Date(new Date(r.revealed_at).getTime() + 9*3600000).toISOString().slice(0,10) === todayStr).map(r => r.target_id)).size;
 
   function topN(obj, n) {
     return Object.entries(obj)
